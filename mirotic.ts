@@ -89,9 +89,23 @@ async function verifyBuildArtifacts(cwd: string): Promise<string[]> {
 import { callClaude } from "./llm";
 
 // Reasoning nhẹ (CEO review, plan refinement) — Claude non-streaming, không tool use.
-async function callClaudeText(prompt: string, opts: { model?: string; timeoutMs?: number } = {}): Promise<string> {
+// Retry 2 lần với backoff 2s + 4s để chịu transient rate-limit / CLI hiccup khi chạy 10 song song.
+async function callClaudeText(
+  prompt: string,
+  opts: { model?: string; timeoutMs?: number; retries?: number } = {},
+): Promise<string> {
   if (!CONFIG.useRealClaude) return "";
-  return callClaude(opts.model ?? CONFIG.modelBuilder, prompt, { timeoutMs: opts.timeoutMs });
+  const retries = opts.retries ?? 2;
+  let lastErr: any;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await callClaude(opts.model ?? CONFIG.modelBuilder, prompt, { timeoutMs: opts.timeoutMs });
+    } catch (e: any) {
+      lastErr = e;
+      if (i < retries) await new Promise((r) => setTimeout(r, (i + 1) * 2000));
+    }
+  }
+  throw lastErr;
 }
 
 // Base checklist: các milestone Builder + Deployer track (coarse).
