@@ -83,23 +83,12 @@ async function verifyBuildArtifacts(cwd: string): Promise<string[]> {
   return missing;
 }
 
-// Non-streaming Claude call cho reasoning nhẹ (CEO review, plan generation).
-// Không cho phép tool use → 1 turn duy nhất, output là text.
+import { callClaude } from "./llm";
+
+// Reasoning nhẹ (CEO review, plan refinement) — Claude non-streaming, không tool use.
 async function callClaudeText(prompt: string, opts: { model?: string; timeoutMs?: number } = {}): Promise<string> {
   if (!CONFIG.useRealClaude) return "";
-  const proc = Bun.spawn(
-    ["claude", "-p", prompt, "--model", opts.model ?? CONFIG.modelBuilder, "--output-format", "json"],
-    { stdout: "pipe", stderr: "pipe", env: { ...process.env } }
-  );
-  const timeout = setTimeout(() => proc.kill(), opts.timeoutMs ?? 120_000);
-  const out = await new Response(proc.stdout).text();
-  await proc.exited;
-  clearTimeout(timeout);
-  if (proc.exitCode !== 0) throw new Error(`claude exited ${proc.exitCode}`);
-  try {
-    const parsed = JSON.parse(out);
-    return parsed.result ?? parsed.response ?? out;
-  } catch { return out; }
+  return callClaude(opts.model ?? CONFIG.modelBuilder, prompt, { timeoutMs: opts.timeoutMs });
 }
 
 // Base checklist: các milestone Builder + Deployer track (coarse).

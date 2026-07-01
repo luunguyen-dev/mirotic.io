@@ -12,7 +12,7 @@ RUN apt-get update \
 RUN npm install -g bun @anthropic-ai/claude-code
 
 WORKDIR /app
-COPY daily-loop.ts prototyper.ts db.ts inject-idea.ts dashboard.html ./
+COPY daily-loop.ts prototyper.ts db.ts llm.ts inject-idea.ts dashboard.html ./
 
 ENV NODE_ENV=production \
     DATA_DIR=/app/data
