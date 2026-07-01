@@ -1,0 +1,46 @@
+services:
+  orchestrator:
+    build: .
+    image: daily-loop
+    container_name: daily-loop
+    restart: unless-stopped
+    ports:
+      - "4321:4321"
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # cần trên Linux; vô hại trên Mac/Windows
+    volumes:
+      - ./data:/app/data                        # sqlite + outbox + builds (mở email ở ./data/outbox/*.html)
+      # Dùng gói Claude Max: đăng nhập 1 lần bằng `claude` trên Mac, rồi mount phiên đó vào container.
+      - ${HOME}/.claude:/root/.claude
+      - ${HOME}/.claude.json:/root/.claude.json
+      # ===== Bật khi USE_REAL_CLAUDE=true =====
+      # gstack skills (clone trên host: git clone https://github.com/garrytan/gstack ./gstack) + backlog để RAG:
+      # - ./gstack:/app/gstack:ro
+      # - ./backlog:/app/backlog:ro
+
+  # ============================================================================
+  # TUỲ CHỌN — chỉ cho Linux + GPU NVIDIA. TRÊN MAC: ĐỪNG bật service này.
+  # Docker trên macOS không thấy GPU/Metal → Ollama trong Docker sẽ chạy CPU rất chậm.
+  # Trên Mac, cài Ollama native (brew install ollama) và để OLLAMA_URL=host.docker.internal.
+  # Nếu bật service dưới (Linux), đổi OLLAMA_URL trong .env thành http://ollama:11434
+  # ============================================================================
+  # ollama:
+  #   image: ollama/ollama
+  #   container_name: ollama
+  #   restart: unless-stopped
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama:/root/.ollama
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
+
+# volumes:
+#   ollama:

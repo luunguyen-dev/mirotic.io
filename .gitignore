@@ -1,0 +1,7 @@
+.env
+.env.bak*
+*.pem
+data/
+node_modules/
+aws/DATABASE_URL.txt
+*.bak

@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Daily Loop — Kanban</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "SF Pro", sans-serif; background: #0b0b0c; color: #e8e8e8; }
+  header { padding: 14px 20px; border-bottom: 1px solid #1c1c1f; display: flex; align-items: center; gap: 16px; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 500; letter-spacing: 0.02em; }
+  header .meta { color: #666; font-size: 12px; }
+  header button { background: #1c1c1f; color: #ddd; border: 1px solid #2a2a2e; padding: 4px 10px; border-radius: 5px; cursor: pointer; font: inherit; }
+  header button:hover { background: #25252a; }
+  .board { display: grid; grid-template-columns: repeat(6, minmax(220px, 1fr)); gap: 12px; padding: 16px; height: calc(100vh - 113px); overflow-x: auto; }
+  .col { background: #111114; border: 1px solid #1c1c1f; border-radius: 8px; display: flex; flex-direction: column; min-height: 0; }
+  .col h2 { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin: 0; padding: 10px 12px; border-bottom: 1px solid #1c1c1f; display: flex; justify-content: space-between; }
+  .col h2 .count { color: #555; }
+  .col .cards { padding: 8px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+  .card { background: #1a1a1e; border: 1px solid #2a2a2e; border-radius: 6px; padding: 10px 12px; cursor: pointer; transition: background 0.1s; }
+  .card:hover { background: #22222a; border-color: #3a3a40; }
+  .card .title { font-weight: 500; font-size: 13px; line-height: 1.35; margin-bottom: 4px; word-break: break-word; }
+  .card .meta { font-size: 11px; color: #777; }
+  .card .source { display: inline-block; padding: 1px 6px; background: #2a2a2e; border-radius: 3px; font-size: 10px; margin-right: 4px; }
+  .card.proposed { border-left: 3px solid #a3d9a5; }
+  .card.approved { border-left: 3px solid #7be0c8; }
+  .card.building { border-left: 3px solid #e0d47b; }
+  .card.demo-ready { border-left: 3px solid #7ba8e0; }
+  .card.deploy-requested { border-left: 3px solid #d67be0; }
+  .card.deployed { border-left: 3px solid #a3d9a5; background: #1a221e; }
+  .card.failed { border-left: 3px solid #e07b7b; opacity: 0.65; }
+  .card.rejected { opacity: 0.45; }
+  /* Drawer detail */
+  .drawer { position: fixed; right: 0; top: 0; bottom: 0; width: 480px; max-width: 100vw; background: #0e0e10; border-left: 1px solid #2a2a2e; padding: 20px; overflow-y: auto; transform: translateX(100%); transition: transform 0.15s; z-index: 10; }
+  .drawer.open { transform: translateX(0); }
+  .drawer .close { position: absolute; top: 12px; right: 14px; background: none; border: none; color: #777; cursor: pointer; font-size: 18px; }
+  .drawer h3 { margin: 0 0 4px; font-size: 17px; font-weight: 500; padding-right: 30px; }
+  .drawer .sub { color: #888; font-size: 12px; margin-bottom: 16px; }
+  .drawer .field { margin-bottom: 14px; }
+  .drawer .field label { font-size: 11px; text-transform: uppercase; color: #666; letter-spacing: 0.06em; display: block; margin-bottom: 4px; }
+  .drawer pre { background: #07070a; border: 1px solid #1c1c1f; border-radius: 5px; padding: 10px; overflow: auto; font-size: 12px; color: #ccc; max-height: 240px; }
+  .drawer .actions { display: flex; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid #1c1c1f; }
+  .drawer .actions a { padding: 6px 12px; border-radius: 5px; text-decoration: none; font-size: 12px; font-weight: 500; border: 1px solid; }
+  .drawer .actions a.primary { background: #1f4d39; border-color: #2d6e54; color: #a3d9a5; }
+  .drawer .actions a.primary:hover { background: #2a6347; }
+  .drawer .actions a.danger { background: #4d1f1f; border-color: #6e2d2d; color: #e07b7b; }
+  .drawer .actions a.danger:hover { background: #632a2a; }
+  .empty { color: #444; font-size: 11px; padding: 12px; text-align: center; }
+
+  /* Log tail */
+  .log-tail { background: #050508; border: 1px solid #1c1c1f; border-radius: 5px; padding: 8px 10px; font-family: "SF Mono", Menlo, monospace; font-size: 11px; line-height: 1.5; max-height: 360px; overflow-y: auto; }
+  .log-tail .log-line { color: #a0a0a0; padding: 1px 0; white-space: pre-wrap; word-break: break-all; }
+  .log-tail .log-line .ts { color: #444; margin-right: 6px; font-size: 10px; }
+  .log-tail .log-line .lv { display: inline-block; width: 14px; margin-right: 4px; text-align: center; }
+  .log-tail .log-line.claude { color: #d4d4d4; }
+  .log-tail .log-line.tool { color: #7ba8e0; }
+  .log-tail .log-line.result { color: #888; }
+  .log-tail .log-line.summary { color: #a3d9a5; font-weight: 500; }
+  .log-tail .log-line.error { color: #e07b7b; }
+  .log-empty { color: #444; font-size: 11px; padding: 8px; }
+  .card .time { font-size: 10px; color: #555; margin-top: 4px; }
+  .card .time.live { color: #e0d47b; font-weight: 500; }
+
+  /* Running-now banner */
+  .running-bar { padding: 10px 20px; border-bottom: 1px solid #1c1c1f; background: #0f0f12; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; min-height: 40px; }
+  .running-bar .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin-right: 6px; }
+  .running-bar .pill { background: #1a1a1e; border: 1px solid #2a2a2e; padding: 4px 10px; border-radius: 12px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .running-bar .pill:hover { background: #22222a; }
+  .running-bar .pill .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .running-bar .pill.building .dot { background: #e0d47b; box-shadow: 0 0 8px #e0d47b; animation: pulse 1.5s infinite; }
+  .running-bar .pill.deploying .dot { background: #d67be0; box-shadow: 0 0 8px #d67be0; animation: pulse 1.5s infinite; }
+  .running-bar .pill .elapsed { color: #888; font-variant-numeric: tabular-nums; }
+  .running-bar .none { color: #555; font-size: 12px; font-style: italic; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Daily Loop</h1>
+  <span class="meta" id="meta">loading…</span>
+  <span style="flex:1"></span>
+  <button onclick="load()">↻ refresh</button>
+</header>
+
+<div class="running-bar" id="running-bar"></div>
+
+<div class="board" id="board"></div>
+<div class="drawer" id="drawer">
+  <button class="close" onclick="closeDrawer()">×</button>
+  <div id="drawer-content"></div>
+</div>
+
+<script>
+const COLS = [
+  ["proposed", "Proposed"],
+  ["approved", "Approved"],
+  ["building", "Building"],
+  ["demo-ready", "Demo ready"],
+  ["deploy-requested", "Deploy requested"],
+  ["deployed", "Deployed"],
+];
+
+function relTime(iso) {
+  if (!iso) return "";
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 0) return "soon";
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${s % 60}s`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${m % 60}m`;
+  return `${Math.floor(h / 24)}d`;
+}
+
+function renderRunningBar(jobs) {
+  const running = jobs.filter(j => j.status === "building" || j.status === "deploying");
+  const bar = document.getElementById("running-bar");
+  if (running.length === 0) {
+    bar.innerHTML = `<span class="label">đang chạy</span><span class="none">không có job nào executor đang xử lý</span>`;
+    return;
+  }
+  const pills = running.map(j => {
+    const elapsedAttr = j.started_at ? `data-tick="${escapeHtml(j.started_at)}" data-prefix="${escapeHtml(j.status)} · "` : "";
+    const elapsedText = j.started_at ? `${j.status} · ${relTime(j.started_at)}` : `${j.status} · —`;
+    return `<span class="pill ${j.status}" onclick="openDrawer('${escapeHtml(j.id)}')">
+      <span class="dot"></span>
+      <span>${escapeHtml(j.title || j.id)}</span>
+      <span class="elapsed" ${elapsedAttr}>${escapeHtml(elapsedText)}</span>
+    </span>`;
+  });
+  bar.innerHTML = `<span class="label">đang chạy</span>${pills.join("")}`;
+}
+
+async function load() {
+  const jobs = await fetch("/api/jobs").then(r => r.json());
+  document.getElementById("meta").textContent = `${jobs.length} jobs · refreshed ${new Date().toLocaleTimeString()}`;
+  renderRunningBar(jobs);
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+  for (const [key, label] of COLS) {
+    const items = jobs.filter(j => j.status === key);
+    const col = document.createElement("div");
+    col.className = "col";
+    col.innerHTML = `<h2>${label}<span class="count">${items.length}</span></h2><div class="cards"></div>`;
+    const cards = col.querySelector(".cards");
+    if (items.length === 0) cards.innerHTML = `<div class="empty">—</div>`;
+    for (const j of items) {
+      const card = document.createElement("div");
+      card.className = `card ${j.status}`;
+      const isLive = j.status === "building" || j.status === "deploying";
+      const tickIso = isLive && j.started_at ? j.started_at : j.created_at;
+      const prefix = isLive && j.started_at ? "▶ " : "";
+      const suffix = isLive && j.started_at ? " running" : " ago";
+      const timeLabel = `${prefix}${relTime(tickIso)}${suffix}`;
+      card.innerHTML = `
+        <div class="title">${escapeHtml(j.title || j.slug || j.id)}</div>
+        <div class="meta"><span class="source">${escapeHtml(j.source || "?")}</span>${escapeHtml(j.type || "")}</div>
+        <div class="time ${isLive ? "live" : ""}" data-tick="${escapeHtml(tickIso || "")}" data-prefix="${escapeHtml(prefix)}" data-suffix="${escapeHtml(suffix)}">${escapeHtml(timeLabel)}</div>`;
+      card.onclick = () => openDrawer(j.id);
+      cards.appendChild(card);
+    }
+    board.appendChild(col);
+  }
+}
+
+let currentDrawerJob = null;
+let logSinceId = 0;
+let logPollTimer = null;
+
+async function openDrawer(id) {
+  const j = await fetch(`/api/jobs/${id}`).then(r => r.json());
+  currentDrawerJob = id;
+  logSinceId = 0;
+  const content = document.getElementById("drawer-content");
+  const actions = [];
+  if (j.status === "proposed") {
+    actions.push(`<a class="primary" href="/approve/${id}?t=${j.signs.approve}">Approve</a>`);
+    actions.push(`<a class="danger" href="/reject/${id}?t=${j.signs.reject}">Reject</a>`);
+  }
+  if (j.status === "demo-ready") {
+    actions.push(`<a class="primary" href="/deploy/${id}?t=${j.signs.deploy}">Deploy</a>`);
+  }
+  content.innerHTML = `
+    <h3>${escapeHtml(j.idea?.title || j.id)}</h3>
+    <div class="sub">${escapeHtml(j.id)} · status <b>${escapeHtml(j.status)}</b> · ${escapeHtml(j.created_at || "")}</div>
+    <div class="field"><label>Why</label><div>${escapeHtml(j.idea?.why || "—")}</div></div>
+    <div class="field"><label>Pitch</label><div>${escapeHtml(j.idea?.pitch || "—")}</div></div>
+    <div class="field"><label>Type / Source</label><div>${escapeHtml(j.idea?.type || "?")} · ${escapeHtml(j.idea?.source || "?")}</div></div>
+    ${j.error_detail ? `<div class="field"><label>Error</label><pre style="color:#e07b7b">${escapeHtml(j.error_detail)}</pre></div>` : ""}
+    ${j.plan ? `<div class="field"><label>Plan</label><pre>${escapeHtml(JSON.stringify(j.plan, null, 2))}</pre></div>` : ""}
+    ${j.result ? `<div class="field"><label>Result</label><pre>${escapeHtml(JSON.stringify(j.result, null, 2))}</pre></div>` : ""}
+    <div class="field"><label>Logs</label><div class="log-tail" id="log-tail"><div class="log-empty">loading…</div></div></div>
+    ${actions.length ? `<div class="actions">${actions.join("")}</div>` : ""}`;
+  document.getElementById("drawer").classList.add("open");
+  clearInterval(logPollTimer);
+  pollLogs();
+  logPollTimer = setInterval(pollLogs, 2000);
+}
+
+async function pollLogs() {
+  if (!currentDrawerJob) return;
+  const jobId = currentDrawerJob;
+  const logs = await fetch(`/api/jobs/${jobId}/logs?since=${logSinceId}`).then(r => r.json()).catch(() => []);
+  if (!logs.length) {
+    const tail = document.getElementById("log-tail");
+    if (tail && logSinceId === 0) tail.innerHTML = `<div class="log-empty">chưa có log</div>`;
+    return;
+  }
+  const tail = document.getElementById("log-tail");
+  if (!tail || currentDrawerJob !== jobId) return;
+  if (logSinceId === 0) tail.innerHTML = "";
+  for (const l of logs) {
+    const ts = l.ts?.slice(11, 19) ?? "";
+    const line = document.createElement("div");
+    line.className = `log-line ${l.level || "info"}`;
+    line.innerHTML = `<span class="ts">${escapeHtml(ts)}</span><span class="lv">${levelIcon(l.level)}</span>${escapeHtml(l.line || "")}`;
+    tail.appendChild(line);
+    logSinceId = Math.max(logSinceId, l.id);
+  }
+  tail.scrollTop = tail.scrollHeight;
+}
+
+function levelIcon(lv) {
+  return ({ tool: "🔧", result: "↩", claude: "💬", summary: "✓", error: "✗", info: "·" })[lv] || "·";
+}
+
+function closeDrawer() {
+  document.getElementById("drawer").classList.remove("open");
+  clearInterval(logPollTimer);
+  currentDrawerJob = null;
+}
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+load();
+setInterval(load, 15_000);
+// Tick mỗi 1s để elapsed time của job đang chạy cập nhật mượt (không gọi API)
+setInterval(() => {
+  document.querySelectorAll("[data-tick]").forEach(el => {
+    const iso = el.getAttribute("data-tick");
+    const prefix = el.getAttribute("data-prefix") ?? "";
+    const suffix = el.getAttribute("data-suffix") ?? "";
+    el.textContent = `${prefix}${relTime(iso)}${suffix}`;
+  });
+}, 1000);
+</script>
+</body>
+</html>

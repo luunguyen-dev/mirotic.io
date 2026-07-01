@@ -10,8 +10,15 @@ bold() { printf "\033[1m%s\033[0m\n" "$1"; }
 ok()   { printf "   \033[32m✓\033[0m %s\n" "$1"; }
 die()  { printf "\033[31m❌ %s\033[0m\n" "$1"; exit 1; }
 
-# Đọc 1 biến từ .env mà KHÔNG source (an toàn với giá trị có dấu cách)
-getenv() { grep -E "^$1=" .env 2>/dev/null | head -1 | cut -d= -f2- || true; }
+# Đọc 1 biến từ .env mà KHÔNG source (an toàn với giá trị có dấu cách).
+# Strip trailing inline comment ("  # ...") và whitespace 2 đầu — nếu không
+# docker compose env_file v2 sẽ nuốt cả comment làm giá trị.
+getenv() {
+  local raw
+  raw="$(grep -E "^$1=" .env 2>/dev/null | head -1)" || true
+  [ -z "$raw" ] && return 0
+  printf '%s' "${raw#*=}" | sed -E 's/[[:space:]]+#.*$//' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g'
+}
 # Ghi/đổi 1 biến trong .env
 upsert() {
   local k="$1" v="$2"
@@ -26,7 +33,7 @@ ok ".env tồn tại"
 
 # ---------- 1. Biến bắt buộc ----------
 bold "[1/7] Kiểm tra biến bắt buộc"
-REQUIRED=(AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION INSTANCE_ID SSH_KEY GITHUB_TOKEN GITHUB_OWNER ANTHROPIC_API_KEY)
+REQUIRED=(AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION INSTANCE_ID SSH_KEY GITHUB_TOKEN GITHUB_OWNER)
 missing=()
 for k in "${REQUIRED[@]}"; do [ -n "$(getenv "$k")" ] || missing+=("$k"); done
 [ ${#missing[@]} -eq 0 ] || die "Thiếu trong .env: ${missing[*]}  → xem SETUP.md để lấy từng giá trị."
@@ -76,7 +83,13 @@ bold "[5/7] Kiểm tra GitHub token & Claude key"
 gh_login=$(curl -fsS -H "Authorization: Bearer $(getenv GITHUB_TOKEN)" https://api.github.com/user 2>/dev/null | grep -o '"login"[^,]*' | head -1) \
   || die "GITHUB_TOKEN không hợp lệ — xem SETUP.md mục GitHub."
 ok "GitHub token hợp lệ ($gh_login)"
-[ -n "$(getenv ANTHROPIC_API_KEY)" ] && ok "ANTHROPIC_API_KEY đã đặt" || die "Thiếu ANTHROPIC_API_KEY."
+if [ -n "$(getenv ANTHROPIC_API_KEY)" ]; then
+  ok "ANTHROPIC_API_KEY đã đặt"
+elif [ -d "$HOME/.claude" ]; then
+  ok "Dùng Claude Max session (~/.claude → mount vào container)"
+else
+  die "Thiếu ANTHROPIC_API_KEY và chưa có ~/.claude. Chạy 'claude' login trên Mac trước, hoặc điền key."
+fi
 
 # ---------- 6. Build & run ----------
 bold "[6/7] Build & chạy Docker"

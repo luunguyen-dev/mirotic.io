@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# ship.sh — deploy project to EC2 + register subdomain với Caddy.
+# Chạy từ thư mục gốc repo. ENV vars điền bởi orchestrator (data/builds/<id>/.shipenv) hoặc CLI.
+#
+# Required env:
+#   SLUG         — định danh project, dùng làm tên subdomain + thư mục /opt/<slug>
+#   EC2_HOST     — IP/domain EC2
+#   EC2_USER     — vd ec2-user
+#   SSH_KEY      — đường dẫn .pem
+#   PORT         — port public mapping vào container :3000
+#   CADDY_DOMAIN — fqdn cho project, vd "<slug>.luunguyen.dev"
+set -euo pipefail
+
+# Cho phép nguồn .shipenv (orchestrator ghi) hoặc env vars CLI.
+[ -f .shipenv ] && source .shipenv
+: "${SLUG:?cần SLUG}" "${EC2_HOST:?cần EC2_HOST}" "${EC2_USER:?cần EC2_USER}" \
+  "${SSH_KEY:?cần SSH_KEY}" "${PORT:?cần PORT}" "${CADDY_DOMAIN:?cần CADDY_DOMAIN}"
+
+SSH_KEY="${SSH_KEY/#\~/$HOME}"
+SSH_CMD=(ssh -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new "$EC2_USER@$EC2_HOST")
+
+echo "→ [1/3] rsync source → $EC2_HOST:/opt/$SLUG/"
+rsync -az --delete \
+  --exclude='.git' --exclude='node_modules' --exclude='.shipenv' --exclude='*.log' \
+  -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=accept-new" \
+  ./ "$EC2_USER@$EC2_HOST:/opt/$SLUG/"
+
+echo "→ [2/3] docker compose up trên EC2 — host port $PORT → container :3000"
+"${SSH_CMD[@]}" "set -e
+  cd /opt/$SLUG
+  cat > docker-compose.override.yml <<EOF
+services:
+  app:
+    ports:
+      - '$PORT:3000'
+EOF
+  sudo docker compose down 2>/dev/null || true
+  sudo docker compose up -d --build
+"
+
+echo "→ [3/3] Caddy: $CADDY_DOMAIN → localhost:$PORT"
+"${SSH_CMD[@]}" "sudo tee /etc/caddy/sites/$SLUG.caddy >/dev/null <<EOF
+$CADDY_DOMAIN {
+  reverse_proxy localhost:$PORT
+}
+EOF
+sudo systemctl reload caddy"
+
+echo "✓ deployed: https://$CADDY_DOMAIN"
