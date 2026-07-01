@@ -63,6 +63,28 @@ export type PoolItem = {
 
 export type LogEntry = { id: number; job_id: string; ts: string; level: string; line: string };
 
+// P1 — projects + issues
+export type Project = {
+  id: string; source_job_id: string | null;
+  slug: string; title: string; title_vi: string | null; description: string | null;
+  status: string;                 // active | paused | archived
+  repo_url: string | null; prod_domain: string | null; staging_domain: string | null;
+  created_at: string; updated_at: string;
+};
+export type IssueType = "feature" | "bug" | "chore" | "spike" | "adr";
+export type IssueStatus = "backlog" | "ready" | "in_progress" | "review" | "shipped" | "dropped";
+export type IssuePriority = "p0" | "p1" | "p2" | "p3";
+export type Issue = {
+  id: string; project_id: string; milestone_id: string | null;
+  title: string; title_vi: string | null; description: string | null; description_vi: string | null;
+  type: IssueType; status: IssueStatus; priority: IssuePriority;
+  parent_issue_id: string | null;
+  builder_model: string | null; ceo_rating: number | null; ceo_critique: string | null;
+  branch_name: string | null; pr_url: string | null;
+  created_at: string; updated_at: string;
+};
+export type NewIssue = Partial<Issue> & { project_id: string; title: string };
+
 interface Backend {
   init(): Promise<void>;
   insertJob(idea: Idea, plan: any): Promise<string>;
@@ -84,6 +106,16 @@ interface Backend {
   // job_logs
   appendLog(jobId: string, line: string, level?: string): Promise<void>;
   getLogs(jobId: string, sinceId: number, limit: number): Promise<LogEntry[]>;
+  // projects + issues (P1)
+  createProject(p: Omit<Project, "created_at" | "updated_at">): Promise<void>;
+  getProject(id: string): Promise<Project | null>;
+  getProjectBySlug(slug: string): Promise<Project | null>;
+  listProjects(limit: number): Promise<Project[]>;
+  setProjectStatus(id: string, status: string): Promise<void>;
+  claimProjectForSeed(id: string): Promise<boolean>;   // atomic swap active→seeding; false nếu đã ai claim
+  createIssue(iss: NewIssue): Promise<string>;
+  listIssues(projectId: string): Promise<Issue[]>;
+  setIssueStatus(id: string, status: IssueStatus): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -151,6 +183,53 @@ function pgBackend(url: string): Backend {
       const r = await sql`SELECT id, job_id, ts, level, line FROM job_logs
         WHERE job_id = ${jobId} AND id > ${sinceId} ORDER BY id ASC LIMIT ${limit}`;
       return r as any;
+    },
+    async createProject(p) {
+      const row = { ...p, created_at: now(), updated_at: now() };
+      await sql`INSERT INTO projects ${sql(row)}`;
+    },
+    async getProject(id) {
+      const r = await sql`SELECT * FROM projects WHERE id = ${id}`;
+      return r.length ? (r[0] as any) : null;
+    },
+    async getProjectBySlug(slug) {
+      const r = await sql`SELECT * FROM projects WHERE slug = ${slug}`;
+      return r.length ? (r[0] as any) : null;
+    },
+    async listProjects(limit) {
+      const r = await sql`SELECT * FROM projects WHERE status IN ('active', 'seeding') ORDER BY updated_at DESC LIMIT ${limit}`;
+      return r as any;
+    },
+    async setProjectStatus(id, status) {
+      await sql`UPDATE projects SET status = ${status}, updated_at = ${now()} WHERE id = ${id}`;
+    },
+    async claimProjectForSeed(id) {
+      const r = await sql`UPDATE projects SET status = 'seeding', updated_at = ${now()}
+        WHERE id = ${id} AND status = 'active' RETURNING id`;
+      return r.length > 0;
+    },
+    async createIssue(iss) {
+      const id = iss.id ?? `${iss.project_id}-${(iss.title ?? "issue").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}-${Math.random().toString(36).slice(2, 6)}`;
+      const row: any = {
+        id, project_id: iss.project_id, milestone_id: iss.milestone_id ?? null,
+        title: iss.title, title_vi: iss.title_vi ?? null,
+        description: iss.description ?? null, description_vi: iss.description_vi ?? null,
+        type: iss.type ?? "feature", status: iss.status ?? "backlog", priority: iss.priority ?? "p2",
+        parent_issue_id: iss.parent_issue_id ?? null,
+        builder_model: iss.builder_model ?? null, ceo_rating: iss.ceo_rating ?? null,
+        ceo_critique: iss.ceo_critique ?? null,
+        branch_name: iss.branch_name ?? null, pr_url: iss.pr_url ?? null,
+        created_at: now(), updated_at: now(),
+      };
+      await sql`INSERT INTO issues ${sql(row)}`;
+      return id;
+    },
+    async listIssues(projectId) {
+      const r = await sql`SELECT * FROM issues WHERE project_id = ${projectId} ORDER BY priority ASC, created_at DESC`;
+      return r as any;
+    },
+    async setIssueStatus(id, status) {
+      await sql`UPDATE issues SET status = ${status}, updated_at = ${now()} WHERE id = ${id}`;
     },
     async close() { await sql.end(); },
   };
@@ -228,6 +307,15 @@ function sqliteBackend(): Backend {
       return db.query(`SELECT id, job_id, ts, level, line FROM job_logs
         WHERE job_id = ? AND id > ? ORDER BY id ASC LIMIT ?`).all(jobId, sinceId, limit) as any;
     },
+    async createProject() { throw new Error("projects not supported in SQLite backend"); },
+    async getProject() { return null; },
+    async getProjectBySlug() { return null; },
+    async listProjects() { return []; },
+    async createIssue() { throw new Error("issues not supported in SQLite backend"); },
+    async listIssues() { return []; },
+    async setIssueStatus() { throw new Error("issues not supported in SQLite backend"); },
+    async setProjectStatus() { throw new Error("projects not supported in SQLite backend"); },
+    async claimProjectForSeed() { return false; },
     async close() { db.close(); },
   };
 }
@@ -259,4 +347,14 @@ export const listPool = (limit = 50) => backend.listPool(limit);
 export const markPoolPromoted = (id: string) => backend.markPoolPromoted(id);
 export const appendLog = (jobId: string, line: string, level = "info") => backend.appendLog(jobId, line, level);
 export const getLogs = (jobId: string, sinceId = 0, limit = 500) => backend.getLogs(jobId, sinceId, limit);
+// P1 — projects + issues
+export const createProject = (p: Omit<Project, "created_at" | "updated_at">) => backend.createProject(p);
+export const getProject = (id: string) => backend.getProject(id);
+export const getProjectBySlug = (slug: string) => backend.getProjectBySlug(slug);
+export const listProjects = (limit = 100) => backend.listProjects(limit);
+export const createIssue = (iss: NewIssue) => backend.createIssue(iss);
+export const listIssues = (projectId: string) => backend.listIssues(projectId);
+export const setIssueStatus = (id: string, status: IssueStatus) => backend.setIssueStatus(id, status);
+export const setProjectStatus = (id: string, status: string) => backend.setProjectStatus(id, status);
+export const claimProjectForSeed = (id: string) => backend.claimProjectForSeed(id);
 export const closeDb = () => backend.close();

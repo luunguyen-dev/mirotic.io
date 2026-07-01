@@ -630,7 +630,9 @@ async function pollOnce(): Promise<void> {
   // 1) Deploy requests (không giới hạn theo ngày)
   let d = await db.claimNextDeployRequested();
   while (d) { await deploy(d.id); d = await db.claimNextDeployRequested(); }
-  // 2) Build: tối đa 1 ý tưởng/ngày
+  // 2) Seed empty projects (LLM cần Claude auth — chỉ chạy trên worker Mac)
+  try { await seedEmptyProjects(); } catch (e: any) { log(`(seedEmptyProjects err: ${e?.message ?? e})`); }
+  // 3) Build: tối đa 1 ý tưởng/ngày
   if ((await db.countStartedToday()) >= 1) return log("⏭️  đã thực thi 1 ý tưởng hôm nay — chờ ngày mai");
   const job = await db.claimNextApproved();
   if (job) await runBuild(job.id);
@@ -707,6 +709,8 @@ const page = (b: string, status = 200) =>
   new Response(`<meta charset=utf8><body style="font-family:system-ui;padding:32px;max-width:760px">${b}</body>`, { status, headers: { "Content-Type": "text/html" } });
 
 const ACTIONS: Record<string, JobStatus> = { approve: "approved", reject: "rejected", deploy: "deploy-requested" };
+// Promote không đổi status của job — chỉ tạo project row. Handler riêng.
+const PROMOTE_ACTION = "promote";
 
 // Model builder user có thể pick khi Approve. Key = short name hiển thị; value = model name gửi CLI.
 // Mở rộng khi wire gpt-5.5 / gemini agentic mượt: chỉ thêm 1 entry.
@@ -714,6 +718,99 @@ const BUILDER_CHOICES: Record<string, string> = {
   sonnet: "claude-sonnet-5",
   opus: "claude-opus-4-8",
 };
+
+// Sinh 5-8 issues khởi tạo từ idea brief. Dùng MODEL_GATHERER (creative synthesis).
+async function seedProjectIssues(projectId: string, idea: Idea): Promise<number> {
+  const prompt = `Bạn đang lập backlog khởi đầu cho 1 dự án mới. Idea vừa được promote từ demo 1-day thành project long-term.
+
+Idea:
+- Title (EN): ${idea.title_en ?? idea.title}
+- Title (VI): ${idea.title_vi ?? idea.title}
+- Pitch: ${idea.pitch_en ?? idea.pitch}
+- Features hiện có: ${(idea.features_en ?? []).join("; ") || "—"}
+- Target user: ${idea.target_user_en ?? "—"}
+- Risk: ${idea.risk_en ?? "—"}
+
+Nhiệm vụ: sinh **5-8 issues** khởi tạo backlog. Phân bố:
+- 3-5 feature (mở rộng scope 1-day → real product): tính năng còn thiếu để usable production
+- 1-2 chore (setup CI/test/monitoring/docs cần cho long-term)
+- 0-1 spike (nghi vấn kỹ thuật cần điều tra trước khi cam kết approach)
+
+Mỗi issue song ngữ EN + VN. Priority p0..p3 (p0 blocker, p2 default, p3 nice-to-have).
+Trả JSON array only, không markdown:
+[{"type":"feature|bug|chore|spike|adr","priority":"p0|p1|p2|p3",
+"title_en":"...","title_vi":"...","description_en":"3-5 câu spec + acceptance criteria","description_vi":"..."},...]`;
+  try {
+    const raw = await callLLM(CONFIG.modelGatherer, prompt, { num_predict: 16384, timeoutMs: 180_000 });
+    const m = raw.match(/\[[\s\S]*\]/);
+    if (!m) return 0;
+    const items = JSON.parse(m[0]) as any[];
+    let count = 0;
+    for (const it of items.slice(0, 8)) {
+      await db.createIssue({
+        project_id: projectId,
+        title: String(it.title_en ?? "Untitled"),
+        title_vi: it.title_vi ?? null,
+        description: String(it.description_en ?? ""),
+        description_vi: String(it.description_vi ?? ""),
+        type: (["feature", "bug", "chore", "spike", "adr"].includes(it.type) ? it.type : "feature") as any,
+        priority: (["p0", "p1", "p2", "p3"].includes(it.priority) ? it.priority : "p2") as any,
+        status: "backlog",
+      });
+      count++;
+    }
+    return count;
+  } catch (e: any) {
+    log(`   (seed issues fail: ${e?.message ?? e})`);
+    return 0;
+  }
+}
+
+// Promote nhanh: chỉ tạo project row (không seed issues — worker Mac có Claude auth sẽ seed sau).
+async function promoteJobToProject(jobId: string): Promise<{ projectId: string; issues: number } | null> {
+  const job = await db.getJob(jobId);
+  if (!job || job.status !== "demo-ready") return null;
+  const idea = job.idea as Idea;
+  const slug = idea.slug;
+  const existing = await db.getProjectBySlug(slug);
+  if (existing) return { projectId: existing.id, issues: 0 };
+
+  const projectId = `proj-${slug}-${Date.now().toString(36)}`;
+  await db.createProject({
+    id: projectId, source_job_id: jobId, slug,
+    title: idea.title_en ?? idea.title,
+    title_vi: idea.title_vi ?? null,
+    description: idea.pitch_en ?? idea.pitch,
+    status: "active",
+    repo_url: job.result?.repoUrl ?? null,
+    prod_domain: `${slug}.luunguyen.dev`,
+    staging_domain: `staging-${slug}.luunguyen.dev`,
+  });
+  return { projectId, issues: 0 };  // worker sẽ seed sau
+}
+
+// Worker poll pick project chưa có issue → seed via LLM. Atomic claim (status active→seeding)
+// tránh race giữa 2 poll process (launchd worker + manual poll).
+async function seedEmptyProjects(): Promise<void> {
+  const projects = await db.listProjects(20);
+  for (const p of projects) {
+    if (p.status !== "active") continue;
+    const existing = await db.listIssues(p.id);
+    if (existing.length > 0) continue;
+    if (!p.source_job_id) continue;
+    const claimed = await db.claimProjectForSeed(p.id);
+    if (!claimed) continue;  // ai đó đã claim
+    try {
+      const job = await db.getJob(p.source_job_id);
+      if (!job) { await db.setProjectStatus(p.id, "active"); continue; }
+      log(`🌱 Seeding issues cho project ${p.slug} (từ job ${job.id})…`);
+      const n = await seedProjectIssues(p.id, job.idea as Idea);
+      log(`   → ${n} issues khởi tạo`);
+    } finally {
+      await db.setProjectStatus(p.id, "active");
+    }
+  }
+}
 
 function startServer() {
   Bun.serve({
@@ -734,7 +831,13 @@ function startServer() {
             idea: full.idea, plan: full.plan,
             ceo_rating: full.ceo_rating, ceo_critique: full.ceo_critique,
             builder_model: full.builder_model,
-            result: full.result, signs: { approve: sign(full.id, "approve"), reject: sign(full.id, "reject"), deploy: sign(full.id, "deploy") },
+            result: full.result,
+            signs: {
+              approve: sign(full.id, "approve"),
+              reject: sign(full.id, "reject"),
+              deploy: sign(full.id, "deploy"),
+              promote: sign(full.id, "promote"),
+            },
           } : null;
         }));
         return Response.json(detailed.filter(Boolean));
@@ -750,7 +853,10 @@ function startServer() {
         const job = await db.getJob(path.slice("/api/jobs/".length));
         if (!job) return new Response("not found", { status: 404 });
         return Response.json({ ...job,
-          signs: { approve: sign(job.id, "approve"), reject: sign(job.id, "reject"), deploy: sign(job.id, "deploy") },
+          signs: {
+            approve: sign(job.id, "approve"), reject: sign(job.id, "reject"),
+            deploy: sign(job.id, "deploy"), promote: sign(job.id, "promote"),
+          },
         });
       }
       if (path === "/api/pool") {
@@ -759,15 +865,40 @@ function startServer() {
       if (path === "/api/builder-choices") {
         return Response.json({ choices: BUILDER_CHOICES, default: "sonnet" });
       }
+      // P1 — projects + issues API
+      if (path === "/api/projects") {
+        return Response.json(await db.listProjects(100));
+      }
+      if (path.startsWith("/api/projects/") && path.endsWith("/issues")) {
+        const projectId = path.slice("/api/projects/".length, -"/issues".length);
+        return Response.json(await db.listIssues(projectId));
+      }
+      if (path.startsWith("/api/projects/")) {
+        const p = await db.getProject(path.slice("/api/projects/".length));
+        if (!p) return new Response("not found", { status: 404 });
+        const issues = await db.listIssues(p.id);
+        return Response.json({ ...p, issues });
+      }
 
       // ─── Static dashboard ────────────────────────────────────
       if (path === "/" || path === "/index.html") {
         const html = await Bun.file(`${import.meta.dir}/dashboard.html`).text().catch(() => null);
         if (html) return new Response(html, { headers: { "Content-Type": "text/html" } });
       }
+      if (path === "/projects" || path.startsWith("/projects/")) {
+        const html = await Bun.file(`${import.meta.dir}/projects.html`).text().catch(() => null);
+        if (html) return new Response(html, { headers: { "Content-Type": "text/html" } });
+      }
 
       // ─── HMAC action routes (giữ tương thích email link) ─────
       const [, action, id] = path.split("/");
+      // Promote: demo-ready job → project + seeded issues
+      if (action === PROMOTE_ACTION && id) {
+        if (!verify(id, PROMOTE_ACTION, url.searchParams.get("t") ?? "")) return page("❌ Token sai", 403);
+        const r = await promoteJobToProject(id);
+        if (!r) return page(`❌ Không thể promote ${id}: chỉ demo-ready mới promote được`, 400);
+        return Response.json({ ok: true, project_id: r.projectId, issues: r.issues });
+      }
       if (action in ACTIONS) {
         if (!verify(id, action, url.searchParams.get("t") ?? "")) return page("❌ Token sai", 403);
         if (!(await db.getJob(id))) return page("❌ Không thấy job", 404);

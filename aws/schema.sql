@@ -42,6 +42,35 @@ CREATE TABLE IF NOT EXISTS idea_pool (
 );
 CREATE INDEX IF NOT EXISTS idea_pool_score_idx ON idea_pool (score DESC) WHERE promoted = FALSE;
 
+-- P1 — projects + issues (idea đã promote thành dự án long-lived).
+CREATE TABLE IF NOT EXISTS projects (
+  id            TEXT PRIMARY KEY,
+  source_job_id TEXT REFERENCES jobs(id),
+  slug          TEXT NOT NULL, title TEXT NOT NULL, title_vi TEXT,
+  description   TEXT, status TEXT DEFAULT 'active',
+  repo_url      TEXT, prod_domain TEXT, staging_domain TEXT,
+  created_at    TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS projects_slug_idx ON projects (slug);
+CREATE TABLE IF NOT EXISTS milestones (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  title TEXT NOT NULL, target_date TEXT, status TEXT DEFAULT 'planned',
+  ordinal INTEGER DEFAULT 0, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS issues (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  milestone_id TEXT REFERENCES milestones(id),
+  title TEXT NOT NULL, title_vi TEXT, description TEXT, description_vi TEXT,
+  type TEXT DEFAULT 'feature',   -- feature|bug|chore|spike|adr
+  status TEXT DEFAULT 'backlog', -- backlog|ready|in_progress|review|shipped|dropped
+  priority TEXT DEFAULT 'p2', parent_issue_id TEXT REFERENCES issues(id),
+  builder_model TEXT, ceo_rating INTEGER, ceo_critique TEXT,
+  branch_name TEXT, pr_url TEXT,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS issues_project_status_idx ON issues (project_id, status);
+CREATE INDEX IF NOT EXISTS issues_priority_idx ON issues (project_id, priority);
+
 -- job_logs: log từng dòng của executor (Claude/gstack output, builder verify, ship.sh)
 CREATE TABLE IF NOT EXISTS job_logs (
   id     BIGSERIAL PRIMARY KEY,

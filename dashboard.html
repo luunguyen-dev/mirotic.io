@@ -99,6 +99,7 @@
 
 <header>
   <h1>Mirotic</h1>
+  <a href="/projects" style="color:#7ba8e0;font-size:13px;text-decoration:none;padding:4px 10px;border-radius:5px;background:#1c1c1f;border:1px solid #2a2a2e">📂 Projects</a>
   <span class="meta" id="meta">loading…</span>
   <span style="flex:1"></span>
   <button onclick="load()">↻ refresh</button>
@@ -230,6 +231,7 @@ async function openDrawer(id) {
   }
   if (j.status === "demo-ready") {
     actions.push(`<a class="primary" onclick="doAction('${id}','deploy','${j.signs.deploy}')">Deploy</a>`);
+    actions.push(`<a onclick="doPromote('${id}','${j.signs.promote}')" style="background:#3a2a4a;border-color:#5a4a7a;color:#d0b8ff">Promote → Project</a>`);
   }
   const builderInfo = j.builder_model ? `<div class="sub" style="margin-top:-8px">Builder: <code>${escapeHtml(j.builder_model)}</code></div>` : "";
   const titleEn = j.idea?.title_en || j.idea?.title || j.id;
@@ -330,6 +332,14 @@ async function doAction(id, action, token) {
   if (!r.ok) { alert(`Action ${action} failed: HTTP ${r.status}`); return; }
   closeDrawer();
   await load();
+}
+
+async function doPromote(id, token) {
+  const btn = event?.target; if (btn) btn.textContent = "Promoting… (LLM sinh backlog)";
+  const r = await fetch(`/promote/${id}?t=${token}`);
+  if (!r.ok) { alert(`Promote failed: HTTP ${r.status} — ${await r.text().catch(()=>"")}`); return; }
+  const j = await r.json();
+  window.location.href = `/projects/${encodeURIComponent(j.project_id)}`;
 }
 
 async function doApprove(id, token) {
