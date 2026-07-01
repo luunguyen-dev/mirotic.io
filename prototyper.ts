@@ -185,88 +185,103 @@ export type ScoredIdea = Idea & { score: number; url?: string };
  */
 export async function batchCollect(n = 10): Promise<ScoredIdea[]> {
   const [hn, gh, ph, bl] = await Promise.all([fromHN(), fromGitHubTrending(), fromProductHunt(), fromBacklog()]);
-  log(`🔎 Prototyper gom: HN ${hn.length} · GitHub ${gh.length} · ProductHunt ${ph.length} · backlog ${bl.length}`);
+  log(`🔎 Signals: HN ${hn.length} · GitHub ${gh.length} · PH ${ph.length} · backlog ${bl.length}`);
   const all = [...hn, ...gh, ...ph, ...bl];
   if (all.length === 0) {
-    log("   (không gom được nguồn nào → dùng seed)");
+    log("   (không gom được signals → dùng seed)");
     return [{ ...SEED, score: 0.5 }];
   }
-  // Bước 1: lọc theo niche (heuristic). Chỉ giữ n+2 để Ollama re-rank + translate (giữ output ngắn).
-  const shortlist = all
+  // Top ~20 signals theo niche score làm INSPIRATION (không phải candidates để copy).
+  const inspirations = all
     .map((c) => ({ c, heur: nicheScore(c) }))
     .sort((a, b) => b.heur - a.heur)
-    .slice(0, n + 2);
+    .slice(0, 20)
+    .map((x) => x.c);
 
-  // Bước 2: convert → Idea (heuristic fallback hoặc Ollama batch score+translate)
-  const candidates: ScoredIdea[] = shortlist.map(({ c, heur }) => {
-    const rawTitle = c.title.split("/").pop() ?? c.title;
-    const whyEn = `Trending on ${c.source}; matches your niche.`;
-    const whyVi = `Đang trending trên ${c.source}; khớp ngách của bạn.`;
-    return {
-      title: rawTitle,
-      slug: slugify(rawTitle),
-      type: inferType(c),
-      pitch: c.summary,
-      why: whyVi,
-      source: c.source,
-      url: c.url,
-      score: Math.min(1, heur / 8),
-      // Fallback: giữ nguyên gốc cho cả 2 ngôn ngữ; Ollama sẽ override title_vi + pitch_vi.
-      title_en: rawTitle,
-      pitch_en: c.summary,
-      why_en: whyEn,
-      title_vi: rawTitle,
-      pitch_vi: c.summary,
-      why_vi: whyVi,
-    };
-  });
-
-  // Bước 3: LLM batch enrich — score + translate + full brief trong 1 shot.
+  // LLM synthesize N idea GỐC dựa vào signals (Opus 4.7 default — creative).
   if (useLLMEnrich) {
     try {
-      const prompt = `Bạn là "Prototyper". Với mỗi candidate dưới, enrich thành brief đầy đủ.
+      const prompt = `Bạn là "Prototyper" — founder solo đang tìm ${n} idea "buildable trong 1 ngày" mỗi sáng.
 
-Niche: ${CFG.niches.join(", ")}
+Niche founder quan tâm: ${CFG.niches.join(", ")}
 
-Task cho MỖI candidate:
-1. score (0..1): độ phù hợp build-trong-1-ngày. Cao = scope rõ, giá trị thực, không cần API xa lạ.
-2. Song ngữ EN + VI cho: title, pitch, features (3-5 bullets ngắn), target_user, why_now (1 câu lý do timing), risk (1 câu rủi ro/giả định lớn nhất).
-3. demo_hours: số nguyên 2..24 ước lượng giờ build demo MVP.
+Tín hiệu xu hướng hôm nay (CHỈ LÀ INSPIRATION — không copy trực tiếp):
+${inspirations.map((c, i) => `${i + 1}. [${c.source}] ${c.title} — ${c.summary}`).join("\n")}
 
-Candidates:
-${candidates.map((c, i) => `${i + 1}. ${c.title} — ${c.pitch}`).join("\n")}
+Nhiệm vụ: sinh ra ${n} idea GỐC. Có thể:
+- Lấy 1 signal, reframe / kết hợp / đối lập / thu hẹp scope xuống 1 ngách
+- Nhìn signal, thấy "pain thực" đằng sau, đề xuất tool nhỏ giải cứu
+- Tự sáng tạo không dựa vào signal nào — nếu bạn thấy có ý hay hơn
 
-Chỉ trả JSON array, không markdown, không giải thích:
-[{"i":1,"score":0.85,"demo_hours":6,
-"title_en":"...","title_vi":"...",
-"pitch_en":"...","pitch_vi":"...",
-"features_en":["...","...","..."],"features_vi":["...","...","..."],
-"target_user_en":"...","target_user_vi":"...",
-"why_now_en":"...","why_now_vi":"...",
-"risk_en":"...","risk_vi":"..."},...]`;
-      const raw = await callLLMForGather(prompt, { num_predict: 16384 });
+TIÊU CHÍ CHẤT LƯỢNG (quan trọng — tránh idea "chán"):
+- **Cụ thể**: title phải là tên product, KHÔNG phải mô tả generic ("AI Todo Wrapper" ❌, "Standup — 5-min voice memo → team digest" ✓)
+- **Có góc riêng**: nêu rõ 1 điểm khác biệt với các tool cùng lĩnh vực đã có
+- **Buildable 1 ngày**: 2-24h, KHÔNG cần API/data khó xin, KHÔNG scope > 1 người 1 ngày
+- **Target user cụ thể**: "developers debugging..." ❌ vague; "SREs chăm 3 microservices Go, không muốn attach debugger" ✓
+- **PMF signal**: user có động lực trả tiền / khoe cho bạn / dùng weekly?
+- **Đa dạng**: 10 idea đừng cùng 1 lĩnh vực. Trải: dev tools, productivity, AI/LLM apps, data viz, creative tools...
+
+Song ngữ EN + VI cho mọi text. type ∈ web-frontend | full-stack | cli | browser-extension.
+Trả JSON array ${n} items, không markdown, không giải thích:
+[{"title_en":"...","title_vi":"...","slug":"kebab-case-slug","type":"web-frontend",
+"pitch_en":"1 câu tagline","pitch_vi":"...",
+"features_en":["3-5 bullet feature core"],"features_vi":["..."],
+"target_user_en":"1 câu ai dùng","target_user_vi":"...",
+"why_now_en":"1 câu vì sao lúc này","why_now_vi":"...",
+"risk_en":"1 câu rủi ro/giả định lớn nhất","risk_vi":"...",
+"demo_hours":6,
+"source":"insp: HN 'X' (reframe as Y)  |  original"},...]`;
+      const raw = await callLLMForGather(prompt, { num_predict: 24576 });
       const m = raw.match(/\[[\s\S]*\]/);
       if (m) {
-        const items: Array<any> = JSON.parse(m[0]);
-        for (const s of items) {
-          const c = candidates[s.i - 1];
-          if (!c) continue;
-          if (typeof s.score === "number") c.score = Math.max(0, Math.min(1, s.score));
-          if (typeof s.demo_hours === "number") c.demo_hours = Math.max(1, Math.min(24, Math.round(s.demo_hours)));
-          for (const k of ["title", "pitch", "target_user", "why_now", "risk"]) {
-            if (s[`${k}_en`]) (c as any)[`${k}_en`] = s[`${k}_en`];
-            if (s[`${k}_vi`]) (c as any)[`${k}_vi`] = s[`${k}_vi`];
-          }
-          if (Array.isArray(s.features_en)) c.features_en = s.features_en.slice(0, 5).map(String);
-          if (Array.isArray(s.features_vi)) c.features_vi = s.features_vi.slice(0, 5).map(String);
-        }
+        const items = JSON.parse(m[0]) as any[];
+        const synthesized: ScoredIdea[] = items.slice(0, n).map((it) => {
+          const titleEn = String(it.title_en ?? it.title ?? "Untitled");
+          const t: ProjectType = (["web-frontend", "full-stack", "cli", "browser-extension"].includes(it.type)
+            ? it.type : "web-frontend") as ProjectType;
+          return {
+            title: titleEn,
+            slug: slugify(String(it.slug ?? titleEn)),
+            type: t,
+            pitch: String(it.pitch_en ?? it.pitch ?? ""),
+            why: String(it.why_now_vi ?? it.why_now_en ?? "Prototyper đề xuất."),
+            source: String(it.source ?? "prototyper"),
+            score: 0.7,                            // score sẽ do CEO review overwrite
+            title_en: titleEn, title_vi: it.title_vi ?? titleEn,
+            pitch_en: String(it.pitch_en ?? ""), pitch_vi: String(it.pitch_vi ?? ""),
+            why_en: String(it.why_now_en ?? ""), why_vi: String(it.why_now_vi ?? ""),
+            features_en: Array.isArray(it.features_en) ? it.features_en.slice(0, 5).map(String) : undefined,
+            features_vi: Array.isArray(it.features_vi) ? it.features_vi.slice(0, 5).map(String) : undefined,
+            target_user_en: it.target_user_en ? String(it.target_user_en) : undefined,
+            target_user_vi: it.target_user_vi ? String(it.target_user_vi) : undefined,
+            why_now_en: it.why_now_en ? String(it.why_now_en) : undefined,
+            why_now_vi: it.why_now_vi ? String(it.why_now_vi) : undefined,
+            risk_en: it.risk_en ? String(it.risk_en) : undefined,
+            risk_vi: it.risk_vi ? String(it.risk_vi) : undefined,
+            demo_hours: typeof it.demo_hours === "number" ? Math.max(1, Math.min(24, Math.round(it.demo_hours))) : undefined,
+          };
+        });
+        log(`   ✓ Prototyper synthesize ${synthesized.length} ideas (model: ${CFG.gathererModel})`);
+        return synthesized;
       }
+      log(`   (LLM output không parse được JSON array → fallback heuristic)`);
     } catch (e: any) {
-      log(`   (LLM enrich lỗi (${CFG.gathererModel}): ${e?.message ?? e} → giữ heuristic brief)`);
+      log(`   (Prototyper synthesis lỗi (${CFG.gathererModel}): ${e?.message ?? e} → fallback heuristic)`);
     }
   }
 
-  return candidates.sort((a, b) => b.score - a.score).slice(0, n);
+  // Fallback heuristic: rank raw candidates by niche, dùng trực tiếp làm idea (chán như cũ, nhưng vẫn có gì đó).
+  return inspirations.slice(0, n).map((c) => {
+    const rawTitle = c.title.split("/").pop() ?? c.title;
+    return {
+      title: rawTitle, slug: slugify(rawTitle), type: inferType(c),
+      pitch: c.summary, why: `Đang trending trên ${c.source}; khớp ngách của bạn.`,
+      source: c.source, url: c.url, score: 0.3,
+      title_en: rawTitle, title_vi: rawTitle,
+      pitch_en: c.summary, pitch_vi: c.summary,
+      why_en: `Trending on ${c.source}.`, why_vi: `Đang trending trên ${c.source}.`,
+    };
+  });
 }
 
 /** Thu thập từ mọi nguồn, lọc theo ngách, chọn 1 ý tưởng. */
