@@ -28,9 +28,15 @@ export type ProjectType = "web-frontend" | "full-stack" | "cli" | "browser-exten
 export type Idea = {
   title: string; slug: string; type: ProjectType;
   pitch: string; why: string; source: string;
-  // Song ngữ — Ollama dịch title+pitch, Prototyper tự tạo why 2 ngôn ngữ.
+  // Song ngữ (title + pitch: Ollama dịch; why: Prototyper heuristic 2 ngôn ngữ).
   title_vi?: string; pitch_vi?: string; why_vi?: string;
   title_en?: string; pitch_en?: string; why_en?: string;
+  // Brief chi tiết (Ollama enrich trong batch call).
+  features?: string[]; features_vi?: string[]; features_en?: string[];
+  target_user?: string; target_user_vi?: string; target_user_en?: string;
+  demo_hours?: number;                    // ước lượng giờ build demo (2..24)
+  why_now?: string; why_now_vi?: string; why_now_en?: string;
+  risk?: string; risk_vi?: string; risk_en?: string;
 };
 type Candidate = { title: string; summary: string; source: string; url?: string };
 
@@ -220,35 +226,48 @@ export async function batchCollect(n = 10): Promise<ScoredIdea[]> {
     };
   });
 
-  // Bước 3: Ollama batch score + dịch title/pitch sang tiếng Việt.
+  // Bước 3: Ollama batch enrich — score + translate + full brief trong 1 shot.
   if (CFG.useRealOllama) {
     try {
-      const prompt = `Bạn là "Prototyper". Với mỗi candidate dưới:
-1. Chấm điểm 0..1 độ phù hợp build-trong-1-ngày phục vụ ngách: ${CFG.niches.join(", ")}.
-   Cao = ý tưởng cụ thể, scope nhỏ, có giá trị thực.
-2. Dịch title + pitch sang tiếng Việt tự nhiên, ngắn gọn.
-   Product/tên riêng giữ nguyên (vd "GitHub", "Vite"). Nếu candidate đã bằng tiếng Việt, giữ nguyên trong title_vi/pitch_vi và điền title_en/pitch_en.
+      const prompt = `Bạn là "Prototyper". Với mỗi candidate dưới, enrich thành brief đầy đủ.
 
+Niche: ${CFG.niches.join(", ")}
+
+Task cho MỖI candidate:
+1. score (0..1): độ phù hợp build-trong-1-ngày. Cao = scope rõ, giá trị thực, không cần API xa lạ.
+2. Song ngữ EN + VI cho: title, pitch, features (3-5 bullets ngắn), target_user, why_now (1 câu lý do timing), risk (1 câu rủi ro/giả định lớn nhất).
+3. demo_hours: số nguyên 2..24 ước lượng giờ build demo MVP.
+
+Candidates:
 ${candidates.map((c, i) => `${i + 1}. ${c.title} — ${c.pitch}`).join("\n")}
 
-Chỉ trả về JSON array (không markdown, không text ngoài):
-[{"i":1,"score":0.85,"title_vi":"...","pitch_vi":"...","title_en":"...","pitch_en":"..."},...]`;
-      const raw = await callLLM(prompt, { num_predict: 8192 });
+Chỉ trả JSON array, không markdown, không giải thích:
+[{"i":1,"score":0.85,"demo_hours":6,
+"title_en":"...","title_vi":"...",
+"pitch_en":"...","pitch_vi":"...",
+"features_en":["...","...","..."],"features_vi":["...","...","..."],
+"target_user_en":"...","target_user_vi":"...",
+"why_now_en":"...","why_now_vi":"...",
+"risk_en":"...","risk_vi":"..."},...]`;
+      const raw = await callLLM(prompt, { num_predict: 16384 });
       const m = raw.match(/\[[\s\S]*\]/);
       if (m) {
-        const items: Array<{ i: number; score?: number; title_vi?: string; pitch_vi?: string; title_en?: string; pitch_en?: string }> = JSON.parse(m[0]);
+        const items: Array<any> = JSON.parse(m[0]);
         for (const s of items) {
           const c = candidates[s.i - 1];
           if (!c) continue;
           if (typeof s.score === "number") c.score = Math.max(0, Math.min(1, s.score));
-          if (s.title_vi) c.title_vi = s.title_vi;
-          if (s.pitch_vi) c.pitch_vi = s.pitch_vi;
-          if (s.title_en) c.title_en = s.title_en;
-          if (s.pitch_en) c.pitch_en = s.pitch_en;
+          if (typeof s.demo_hours === "number") c.demo_hours = Math.max(1, Math.min(24, Math.round(s.demo_hours)));
+          for (const k of ["title", "pitch", "target_user", "why_now", "risk"]) {
+            if (s[`${k}_en`]) (c as any)[`${k}_en`] = s[`${k}_en`];
+            if (s[`${k}_vi`]) (c as any)[`${k}_vi`] = s[`${k}_vi`];
+          }
+          if (Array.isArray(s.features_en)) c.features_en = s.features_en.slice(0, 5).map(String);
+          if (Array.isArray(s.features_vi)) c.features_vi = s.features_vi.slice(0, 5).map(String);
         }
       }
     } catch (e: any) {
-      log(`   (Ollama scoring/translate lỗi: ${e?.message ?? e} → giữ heuristic)`);
+      log(`   (Ollama enrich lỗi: ${e?.message ?? e} → giữ heuristic brief)`);
     }
   }
 

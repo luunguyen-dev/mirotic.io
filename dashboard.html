@@ -22,6 +22,25 @@
   .card:hover { background: #22222a; border-color: #3a3a40; }
   .card .title { font-weight: 500; font-size: 13px; line-height: 1.35; margin-bottom: 2px; word-break: break-word; }
   .card .title-vi { font-size: 11px; color: #888; line-height: 1.3; margin-bottom: 4px; font-style: italic; word-break: break-word; }
+  .card .stars { color: #e0d47b; font-size: 11px; letter-spacing: 1px; margin-right: 4px; }
+  .card .hours { font-size: 10px; color: #666; }
+  .card .top-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .card .top-row .rating { font-size: 11px; }
+
+  /* Checklist */
+  .checklist { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+  .checklist .step { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; padding: 4px 8px; border-radius: 4px; background: #131316; }
+  .checklist .step .icon { font-size: 14px; width: 16px; text-align: center; flex-shrink: 0; margin-top: 1px; }
+  .checklist .step.pending { color: #666; }
+  .checklist .step.in_progress { color: #e0d47b; background: #1f1b0a; }
+  .checklist .step.done { color: #a3d9a5; }
+  .checklist .step.failed { color: #e07b7b; background: #1f0f0f; }
+  .checklist .step .lbl-vi { display: block; color: #888; font-style: italic; font-size: 10px; margin-top: 1px; }
+  .checklist .step .note { display: block; font-size: 10px; color: #777; margin-top: 2px; }
+
+  /* Features chips */
+  .features { display: flex; flex-wrap: wrap; gap: 4px; }
+  .features .feat { background: #1a1a1e; border: 1px solid #2a2a2e; border-radius: 3px; padding: 2px 6px; font-size: 11px; color: #ccc; }
   .card .meta { font-size: 11px; color: #777; }
   .card .source { display: inline-block; padding: 1px 6px; background: #2a2a2e; border-radius: 3px; font-size: 10px; margin-right: 4px; }
   .card.proposed { border-left: 3px solid #a3d9a5; }
@@ -142,7 +161,11 @@ async function load() {
   const board = document.getElementById("board");
   board.innerHTML = "";
   for (const [key, label] of COLS) {
-    const items = jobs.filter(j => j.status === key);
+    let items = jobs.filter(j => j.status === key);
+    // Sort proposed by CEO rating desc, tie-break created_at desc.
+    if (key === "proposed") {
+      items = items.sort((a, b) => (b.ceo_rating ?? 0) - (a.ceo_rating ?? 0) || (b.created_at > a.created_at ? 1 : -1));
+    }
     const col = document.createElement("div");
     col.className = "col";
     col.innerHTML = `<h2>${label}<span class="count">${items.length}</span></h2><div class="cards"></div>`;
@@ -159,7 +182,11 @@ async function load() {
       const titleEn = j.idea?.title_en || j.title || j.slug || j.id;
       const titleVi = j.idea?.title_vi;
       const titleVn = titleVi && titleVi !== titleEn ? `<div class="title-vi">${escapeHtml(titleVi)}</div>` : "";
+      const stars = j.ceo_rating ? "★".repeat(j.ceo_rating) + "☆".repeat(5 - j.ceo_rating) : "";
+      const hours = j.idea?.demo_hours ? `${j.idea.demo_hours}h` : "";
+      const topRow = stars || hours ? `<div class="top-row"><span class="rating"><span class="stars">${stars}</span></span><span class="hours">${escapeHtml(hours)}</span></div>` : "";
       card.innerHTML = `
+        ${topRow}
         <div class="title">${escapeHtml(titleEn)}</div>
         ${titleVn}
         <div class="meta"><span class="source">${escapeHtml(j.source || "?")}</span>${escapeHtml(j.type || "")}</div>
@@ -198,15 +225,45 @@ async function openDrawer(id) {
     <div>${escapeHtml(en || "—")}</div>
     ${vi && vi !== en ? `<div style="color:#888;font-style:italic;margin-top:2px">${escapeHtml(vi)}</div>` : ""}
   </div>`;
+  const stars = j.ceo_rating ? "★".repeat(j.ceo_rating) + "☆".repeat(5 - j.ceo_rating) : "";
+  let critique = {};
+  try { critique = j.ceo_critique ? JSON.parse(j.ceo_critique) : {}; } catch {}
+  const featEn = j.idea?.features_en || [];
+  const featVi = j.idea?.features_vi || [];
+  const featBlock = featEn.length || featVi.length ? `<div class="field"><label>Features</label>
+    <div class="features">${featEn.map(f => `<span class="feat">${escapeHtml(f)}</span>`).join("")}</div>
+    ${featVi.length ? `<div class="features" style="margin-top:4px">${featVi.map(f => `<span class="feat" style="color:#888;font-style:italic">${escapeHtml(f)}</span>`).join("")}</div>` : ""}
+  </div>` : "";
+  const targetBlock = j.idea?.target_user_en || j.idea?.target_user_vi ? biField("Target user", j.idea?.target_user_en, j.idea?.target_user_vi) : "";
+  const whyNowBlock = j.idea?.why_now_en || j.idea?.why_now_vi ? biField("Why now", j.idea?.why_now_en, j.idea?.why_now_vi) : "";
+  const riskBlock = j.idea?.risk_en || j.idea?.risk_vi ? biField("Risk", j.idea?.risk_en, j.idea?.risk_vi) : "";
+  const hoursBlock = j.idea?.demo_hours ? `<div class="field"><label>Demo hours</label><div>${escapeHtml(j.idea.demo_hours + "h")}</div></div>` : "";
+
+  const stepIcon = { pending: "○", in_progress: "◐", done: "✓", failed: "✗" };
+  const stepsBlock = j.plan?.steps?.length ? `<div class="field"><label>Progress checklist</label>
+    <div class="checklist">${j.plan.steps.map(s => `<div class="step ${s.status}">
+      <span class="icon">${stepIcon[s.status] || "○"}</span>
+      <div><span>${escapeHtml(s.label_en)}</span><span class="lbl-vi">${escapeHtml(s.label_vi)}</span>${s.note ? `<span class="note">${escapeHtml(s.note)}</span>` : ""}</div>
+    </div>`).join("")}</div></div>` : "";
+
   content.innerHTML = `
     <h3>${escapeHtml(titleEn)}</h3>
     ${titleVi && titleVi !== titleEn ? `<div style="color:#888;font-style:italic;font-size:13px;margin-top:-4px;margin-bottom:4px">${escapeHtml(titleVi)}</div>` : ""}
-    <div class="sub">${escapeHtml(j.id)} · status <b>${escapeHtml(j.status)}</b> · ${escapeHtml(j.created_at || "")}</div>
+    <div class="sub">${escapeHtml(j.id)} · status <b>${escapeHtml(j.status)}</b>${stars ? ` · <span style="color:#e0d47b">${stars}</span>` : ""}</div>
+    ${critique.en || critique.vi ? `<div class="field"><label>CEO critique ${stars}</label>
+      <div>${escapeHtml(critique.en || "—")}</div>
+      ${critique.vi ? `<div style="color:#888;font-style:italic;margin-top:2px">${escapeHtml(critique.vi)}</div>` : ""}
+    </div>` : ""}
     ${biField("Pitch", pitchEn, pitchVi)}
     ${biField("Why", whyEn, whyVi)}
+    ${featBlock}
+    ${targetBlock}
+    ${whyNowBlock}
+    ${riskBlock}
+    ${hoursBlock}
     <div class="field"><label>Type / Source</label><div>${escapeHtml(j.idea?.type || "?")} · ${escapeHtml(j.idea?.source || "?")}</div></div>
     ${j.error_detail ? `<div class="field"><label>Error</label><pre style="color:#e07b7b">${escapeHtml(j.error_detail)}</pre></div>` : ""}
-    ${j.plan ? `<div class="field"><label>Plan</label><pre>${escapeHtml(JSON.stringify(j.plan, null, 2))}</pre></div>` : ""}
+    ${stepsBlock}
     ${j.result ? `<div class="field"><label>Result</label><pre>${escapeHtml(JSON.stringify(j.result, null, 2))}</pre></div>` : ""}
     <div class="field"><label>Logs</label><div class="log-tail" id="log-tail"><div class="log-empty">loading…</div></div></div>
     ${actions.length ? `<div class="actions">${actions.join("")}</div>` : ""}`;

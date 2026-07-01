@@ -8,9 +8,14 @@ CREATE TABLE IF NOT EXISTS jobs (
   result_json   TEXT,          -- Result (JSON): repoUrl, localUrl, deployedUrl, tests...
   reject_reason TEXT,
   started_at    TEXT,          -- lúc bắt đầu thực thi (cho gate 1 ý tưởng/ngày)
-  error_detail  TEXT           -- chi tiết lỗi khi status=failed (last error message + stage)
+  error_detail  TEXT,          -- chi tiết lỗi khi status=failed
+  ceo_rating    INTEGER,       -- CEO review rating (1-5 stars). Cao = ý tưởng đáng làm.
+  ceo_critique  TEXT           -- CEO critique (song ngữ JSON: {en, vi})
 );
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS error_detail TEXT;  -- migrate cũ
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS error_detail TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS ceo_rating   INTEGER;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS ceo_critique TEXT;
+CREATE INDEX IF NOT EXISTS jobs_status_rating_idx ON jobs (status, ceo_rating DESC);
 CREATE INDEX IF NOT EXISTS jobs_status_idx  ON jobs (status);
 CREATE INDEX IF NOT EXISTS jobs_created_idx ON jobs (created_at DESC);
 
@@ -30,7 +35,9 @@ CREATE TABLE IF NOT EXISTS idea_pool (
   promoted    BOOLEAN DEFAULT FALSE,    -- true khi đã chuyển sang bảng jobs
   -- Song ngữ (Ollama translate title/pitch, Prototyper tự tạo why 2 ngôn ngữ).
   title_vi    TEXT,  pitch_vi TEXT,  why_vi TEXT,
-  title_en    TEXT,  pitch_en TEXT,  why_en TEXT
+  title_en    TEXT,  pitch_en TEXT,  why_en TEXT,
+  ceo_rating  INTEGER,
+  ceo_critique TEXT
 );
 CREATE INDEX IF NOT EXISTS idea_pool_score_idx ON idea_pool (score DESC) WHERE promoted = FALSE;
 

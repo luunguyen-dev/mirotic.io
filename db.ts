@@ -25,6 +25,8 @@ export type Job = {
   idea: Idea; plan: any; result: any;
   reject_reason: string | null; started_at: string | null;
   error_detail: string | null;
+  ceo_rating: number | null;
+  ceo_critique: string | null;  // JSON blob {en, vi}
 };
 
 const SCHEMA = `CREATE TABLE IF NOT EXISTS jobs (
@@ -44,6 +46,8 @@ function parse(r: any): Job {
     reject_reason: r.reject_reason ?? null,
     started_at: r.started_at ?? null,
     error_detail: r.error_detail ?? null,
+    ceo_rating: r.ceo_rating ?? null,
+    ceo_critique: r.ceo_critique ?? null,
   };
 }
 
@@ -52,6 +56,7 @@ export type PoolItem = {
   source: string; url: string | null; type: string; score: number; promoted: boolean;
   title_vi?: string | null; pitch_vi?: string | null; why_vi?: string | null;
   title_en?: string | null; pitch_en?: string | null; why_en?: string | null;
+  ceo_rating?: number | null; ceo_critique?: string | null;
 };
 
 export type LogEntry = { id: number; job_id: string; ts: string; level: string; line: string };
@@ -64,6 +69,8 @@ interface Backend {
   setStatus(id: string, status: JobStatus): Promise<void>;
   setResult(id: string, result: any, status: JobStatus): Promise<void>;
   setRejectReason(id: string, reason: string): Promise<void>;
+  setCeoReview(id: string, rating: number, critique: string): Promise<void>;
+  setPlan(id: string, plan: any): Promise<void>;
   countStartedToday(): Promise<number>;
   claimNextApproved(): Promise<Job | null>;        // approved → building (+started_at)
   claimNextDeployRequested(): Promise<Job | null>; // deploy-requested → deploying
@@ -99,6 +106,12 @@ function pgBackend(url: string): Backend {
       await sql`UPDATE jobs SET result_json = ${JSON.stringify(result)}, status = ${status}, error_detail = ${errorDetail} WHERE id = ${id}`;
     },
     async setRejectReason(id, reason) { await sql`UPDATE jobs SET reject_reason = ${reason} WHERE id = ${id}`; },
+    async setCeoReview(id, rating, critique) {
+      await sql`UPDATE jobs SET ceo_rating = ${rating}, ceo_critique = ${critique} WHERE id = ${id}`;
+    },
+    async setPlan(id, plan) {
+      await sql`UPDATE jobs SET plan_json = ${JSON.stringify(plan)} WHERE id = ${id}`;
+    },
     async countStartedToday() {
       const r = await sql`SELECT count(*)::int AS n FROM jobs WHERE started_at IS NOT NULL AND left(started_at, 10) = ${today()}`;
       return r[0].n;
@@ -161,6 +174,12 @@ function sqliteBackend(): Backend {
       db.run(`UPDATE jobs SET result_json = ?, status = ?, error_detail = ? WHERE id = ?`, [JSON.stringify(result), status, errorDetail, id]);
     },
     async setRejectReason(id, reason) { db.run(`UPDATE jobs SET reject_reason = ? WHERE id = ?`, [reason, id]); },
+    async setCeoReview(id, rating, critique) {
+      try { db.run(`ALTER TABLE jobs ADD COLUMN ceo_rating INTEGER`); } catch {}
+      try { db.run(`ALTER TABLE jobs ADD COLUMN ceo_critique TEXT`); } catch {}
+      db.run(`UPDATE jobs SET ceo_rating = ?, ceo_critique = ? WHERE id = ?`, [rating, critique, id]);
+    },
+    async setPlan(id, plan) { db.run(`UPDATE jobs SET plan_json = ? WHERE id = ?`, [JSON.stringify(plan), id]); },
     async countStartedToday() {
       const r = db.query(`SELECT count(*) AS n FROM jobs WHERE started_at IS NOT NULL AND substr(started_at,1,10) = ?`).get(today()) as any;
       return r.n;
@@ -219,6 +238,8 @@ export const listJobs = (limit = 50) => backend.listJobs(limit);
 export const setStatus = (id: string, status: JobStatus) => backend.setStatus(id, status);
 export const setResult = (id: string, result: any, status: JobStatus) => backend.setResult(id, result, status);
 export const setRejectReason = (id: string, reason: string) => backend.setRejectReason(id, reason);
+export const setCeoReview = (id: string, rating: number, critique: string) => backend.setCeoReview(id, rating, critique);
+export const setPlan = (id: string, plan: any) => backend.setPlan(id, plan);
 export const countStartedToday = () => backend.countStartedToday();
 export const claimNextApproved = () => backend.claimNextApproved();
 export const claimNextDeployRequested = () => backend.claimNextDeployRequested();

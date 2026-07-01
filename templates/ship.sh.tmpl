@@ -19,7 +19,8 @@ set -euo pipefail
 SSH_KEY="${SSH_KEY/#\~/$HOME}"
 SSH_CMD=(ssh -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new "$EC2_USER@$EC2_HOST")
 
-echo "→ [1/3] rsync source → $EC2_HOST:/opt/$SLUG/"
+echo "→ [1/3] chuẩn bị /opt/$SLUG + rsync source"
+"${SSH_CMD[@]}" "sudo mkdir -p /opt/$SLUG && sudo chown $EC2_USER:$EC2_USER /opt/$SLUG"
 rsync -az --delete \
   --exclude='.git' --exclude='node_modules' --exclude='.shipenv' --exclude='*.log' \
   -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=accept-new" \

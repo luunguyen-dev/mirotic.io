@@ -47,9 +47,11 @@ const CONFIG = {
 mkdirSync(CONFIG.outbox, { recursive: true });
 mkdirSync(CONFIG.builds, { recursive: true });
 
+type PlanStep = { key: string; label_en: string; label_vi: string; status: "pending" | "in_progress" | "done" | "failed"; note?: string };
 type Plan = {
   problem: string; tenStar: string; scopeCut: string; stack: string;
   buildSteps: string[]; testPlan: string[]; tasteDecisions: string[];
+  steps?: PlanStep[];      // checklist tracking (generated on Approve)
 };
 type Result = {
   repoUrl: string; branch: string; localUrl: string;
@@ -79,6 +81,133 @@ async function verifyBuildArtifacts(cwd: string): Promise<string[]> {
     } catch (e: any) { missing.push(`compose check err: ${e?.message}`); }
   }
   return missing;
+}
+
+// Non-streaming Claude call cho reasoning nhẹ (CEO review, plan generation).
+// Không cho phép tool use → 1 turn duy nhất, output là text.
+async function callClaudeText(prompt: string, opts: { model?: string; timeoutMs?: number } = {}): Promise<string> {
+  if (!CONFIG.useRealClaude) return "";
+  const proc = Bun.spawn(
+    ["claude", "-p", prompt, "--model", opts.model ?? CONFIG.modelBuilder, "--output-format", "json"],
+    { stdout: "pipe", stderr: "pipe", env: { ...process.env } }
+  );
+  const timeout = setTimeout(() => proc.kill(), opts.timeoutMs ?? 120_000);
+  const out = await new Response(proc.stdout).text();
+  await proc.exited;
+  clearTimeout(timeout);
+  if (proc.exitCode !== 0) throw new Error(`claude exited ${proc.exitCode}`);
+  try {
+    const parsed = JSON.parse(out);
+    return parsed.result ?? parsed.response ?? out;
+  } catch { return out; }
+}
+
+// Base checklist: các milestone Builder + Deployer track (coarse).
+const BASE_STEPS: PlanStep[] = [
+  { key: "spec", label_en: "Spec approved", label_vi: "Đã duyệt spec", status: "done" },
+  { key: "scaffold", label_en: "Scaffold project", label_vi: "Scaffold project", status: "pending" },
+  { key: "implement", label_en: "Implement core feature", label_vi: "Implement core feature", status: "pending" },
+  { key: "review", label_en: "/review + /cso pass", label_vi: "/review + /cso pass", status: "pending" },
+  { key: "qa", label_en: "/qa smoke test", label_vi: "/qa smoke test", status: "pending" },
+  { key: "artifacts", label_en: "Dockerfile + compose + ship.sh", label_vi: "Dockerfile + compose + ship.sh", status: "pending" },
+  { key: "github", label_en: "Private GitHub repo pushed", label_vi: "Repo private đã push", status: "pending" },
+  { key: "local", label_en: "docker compose up local", label_vi: "docker compose up local", status: "pending" },
+  { key: "deploy", label_en: "Deploy AWS + Caddy live", label_vi: "Deploy AWS + Caddy live", status: "pending" },
+];
+
+async function generateDetailedPlan(idea: Idea, jobId: string): Promise<Plan> {
+  const stack = STACK_BY_TYPE[idea.type];
+  const base: Plan = {
+    problem: idea.why_en ?? idea.why,
+    tenStar: `10-star: ${idea.title_en ?? idea.title} — smooth enough users don't think about it.`,
+    scopeCut: `MVP demo trong ${idea.demo_hours ?? "1 ngày"}: happy path only.`,
+    stack,
+    buildSteps: (idea.features_en ?? []).length ? idea.features_en! : ["Scaffold", "Core feature", "Empty/error states", "Polish"],
+    testPlan: [idea.type === "cli" ? "Unit + CLI smoke" : "Browser test (/qa)", "Edge cases", "Regression"],
+    tasteDecisions: [`Stack: ${stack}`, "Scope MVP"],
+    steps: JSON.parse(JSON.stringify(BASE_STEPS)) as PlanStep[],
+  };
+
+  // Nếu Claude bật + gstack có, xin refinement: 1 turn nhẹ chọn scope + task list riêng cho idea.
+  if (CONFIG.useRealClaude) {
+    try {
+      const prompt = `Bạn có gstack. Refine plan build 1-day MVP cho idea:
+
+Title: ${idea.title_en ?? idea.title}
+Pitch: ${idea.pitch_en ?? idea.pitch}
+Features (đề xuất): ${(idea.features_en ?? []).join("; ")}
+Target user: ${idea.target_user_en ?? "—"}
+Demo hours: ${idea.demo_hours ?? "?"}
+Stack: ${stack}
+
+Trả JSON DUY NHẤT không markdown:
+{"scope_cut":"1 câu rõ MVP giới hạn","build_steps":["step 1","step 2","step 3","step 4","step 5"],"taste_decisions":["decision 1","decision 2","decision 3"],"test_plan":["test 1","test 2","test 3"]}`;
+      const raw = await callClaudeText(prompt, { timeoutMs: 60_000 });
+      const m = raw.match(/\{[\s\S]*\}/);
+      if (m) {
+        const p = JSON.parse(m[0]);
+        if (p.scope_cut) base.scopeCut = String(p.scope_cut);
+        if (Array.isArray(p.build_steps)) base.buildSteps = p.build_steps.slice(0, 8).map(String);
+        if (Array.isArray(p.taste_decisions)) base.tasteDecisions = p.taste_decisions.slice(0, 6).map(String);
+        if (Array.isArray(p.test_plan)) base.testPlan = p.test_plan.slice(0, 6).map(String);
+      }
+    } catch (e: any) {
+      jLog(jobId, `[plan] Claude refinement fail: ${e?.message ?? e} — giữ plan base`, "error");
+    }
+  }
+  return base;
+}
+
+// Update 1 step status trong plan_json của job. Log kèm.
+async function updatePlanStep(jobId: string, stepKey: string, status: PlanStep["status"], note?: string) {
+  const job = await db.getJob(jobId);
+  if (!job?.plan?.steps) return;
+  const step = job.plan.steps.find((s: PlanStep) => s.key === stepKey);
+  if (!step) return;
+  step.status = status;
+  if (note) step.note = note.slice(0, 240);
+  await db.setPlan(jobId, job.plan);
+  jLog(jobId, `[plan] ${stepKey} → ${status}${note ? ` (${note.slice(0, 80)})` : ""}`, "summary");
+}
+
+async function ceoReview(idea: Idea): Promise<{ rating: number; critique: { en: string; vi: string } } | null> {
+  if (!CONFIG.useRealClaude) return null;
+  const prompt = `Bạn là CEO review 1 ý tưởng sản phẩm cho founder solo. Founder có thời gian ~1 ngày cho MVP.
+
+IDEA:
+- Title: ${idea.title_en ?? idea.title}
+- Pitch: ${idea.pitch_en ?? idea.pitch}
+- Target user: ${idea.target_user_en ?? "—"}
+- Features: ${(idea.features_en ?? []).join("; ") || "—"}
+- Why now: ${idea.why_now_en ?? "—"}
+- Risk: ${idea.risk_en ?? "—"}
+- Demo hours ước lượng: ${idea.demo_hours ?? "?"}
+- Source: ${idea.source}
+
+Rubric rating 1-5 (thang sao):
+- 5 = high-value, PMF signal rõ, scope tight, low risk, khác biệt rõ với existing
+- 4 = tốt, đáng build 1 ngày, vài caveats nhỏ
+- 3 = trung bình, có value nhưng thị trường đông / weak differentiation
+- 2 = yếu, low pull, thị trường không rõ
+- 1 = không nên build, misaligned với niche hoặc chỉ là stunt
+
+Chấm PHẢN BIỆN: nêu weakness thẳng, đừng nịnh. Nếu scope > 1 ngày → giảm rating.
+
+Trả JSON DUY NHẤT, không markdown, không giải thích ngoài:
+{"rating": <1..5>, "critique_en": "3-4 câu strengths + weaknesses + verdict", "critique_vi": "3-4 câu tiếng Việt"}`;
+  try {
+    const raw = await callClaudeText(prompt, { timeoutMs: 60_000 });
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (!m) return null;
+    const parsed = JSON.parse(m[0]);
+    return {
+      rating: Math.max(1, Math.min(5, Math.round(Number(parsed.rating) || 3))),
+      critique: { en: String(parsed.critique_en ?? ""), vi: String(parsed.critique_vi ?? "") },
+    };
+  } catch (e: any) {
+    log(`   (CEO review fail: ${e?.message ?? e})`);
+    return null;
+  }
 }
 
 async function callClaudeCode(prompt: string, cwd: string, jobId?: string): Promise<string> {
@@ -192,10 +321,18 @@ function deployedEmail(idea: Idea, url: string): string {
 async function runBuild(id: string): Promise<void> {
   const job = await db.getJob(id);
   if (!job) return;
-  const { idea, plan } = job as { idea: Idea; plan: Plan };
+  const { idea } = job as { idea: Idea };
   const cwd = `${CONFIG.builds}/${id}`;
   mkdirSync(cwd, { recursive: true });
   const port = 3000 + (Math.abs(hash(id)) % 900);
+
+  // Sinh detailed plan (checklist) nếu chưa có (batch chỉ sinh Plan base khi insert).
+  let plan = job.plan as Plan;
+  if (!plan?.steps?.length) {
+    jLog(id, `[plan] sinh detailed plan (Claude refinement)…`);
+    plan = await generateDetailedPlan(idea, id);
+    await db.setPlan(id, plan);
+  }
   jLog(id, `🤖 EXECUTOR (Claude Code + gstack) — ${id}`);
 
   if (CONFIG.useRealClaude) {
@@ -235,18 +372,29 @@ KHÔNG chạy \`/ship\` (deploy AWS task riêng).
 KHÔNG cần CI/CD GitHub Actions.
 KHÔNG hỏi user — chạy autonomous, mọi quyết định nhỏ tự pick rồi note vào commit.`;
       jLog(id, `[claude] gọi Claude Code — có thể mất vài phút…`);
+      await updatePlanStep(id, "scaffold", "in_progress");
+      await updatePlanStep(id, "implement", "in_progress");
       const out = await callClaudeCode(prompt, cwd, id);
       jLog(id, `[claude] xong: ${out.slice(0, 200)}`);
+      await updatePlanStep(id, "scaffold", "done");
+      await updatePlanStep(id, "implement", "done");
+      // Claude được yêu cầu chạy /review /cso /qa trong prompt — mark done sau khi Claude exit=0.
+      await updatePlanStep(id, "review", "done");
+      await updatePlanStep(id, "qa", "done");
+      await updatePlanStep(id, "github", "done");
       const missing = await verifyBuildArtifacts(cwd);
       if (missing.length) {
         const err = `Builder thiếu artifact bắt buộc: ${missing.join(", ")}`;
         jLog(id, `[verify] FAIL — ${err}`, "error");
+        await updatePlanStep(id, "artifacts", "failed", err);
         await db.setResult(id, { error: err, cwd }, "failed");
         return;
       }
+      await updatePlanStep(id, "artifacts", "done");
       jLog(id, `[verify] OK — Dockerfile + compose + ship.sh đủ, compose config hợp lệ`, "summary");
     } catch (e: any) {
       jLog(id, `[claude] FAILED: ${e?.message ?? e}`, "error");
+      await updatePlanStep(id, "implement", "failed", String(e?.message ?? e));
       await db.setResult(id, { error: String(e?.message ?? e) }, "failed");
       return;
     }
@@ -272,6 +420,7 @@ KHÔNG hỏi user — chạy autonomous, mọi quyết định nhỏ tự pick r
       - "${localPort}:3000"
 `);
     jLog(id, `[docker] docker compose up -d — port ${localPort} → container :3000`);
+    await updatePlanStep(id, "local", "in_progress");
     const upProc = Bun.spawn(["docker", "compose", "up", "-d", "--build"],
       { cwd, stdout: "pipe", stderr: "pipe" });
     const upErr = await new Response(upProc.stderr).text();
@@ -280,9 +429,11 @@ KHÔNG hỏi user — chạy autonomous, mọi quyết định nhỏ tự pick r
     if (upProc.exitCode !== 0) {
       const errMsg = `docker compose up FAIL: ${(upErr || upOut).slice(-500)}`;
       jLog(id, `[docker] ${errMsg}`, "error");
+      await updatePlanStep(id, "local", "failed", errMsg);
       await db.setResult(id, { error: errMsg } as any, "failed");
       return;
     }
+    await updatePlanStep(id, "local", "done", `http://localhost:${localPort}`);
     jLog(id, `[docker] container running → http://localhost:${localPort}`, "summary");
 
     try {
@@ -314,6 +465,7 @@ async function deploy(id: string): Promise<void> {
   const publicPort = PUBLIC_PORT_BASE + (Math.abs(hash(slug)) % 900);
   const domain = `${slug}.luunguyen.dev`;
   jLog(id, `🚀 DEPLOY → ${CONFIG.awsHost} — ${id}`);
+  await updatePlanStep(id, "deploy", "in_progress");
 
   try {
     // 1) Verify build artifacts còn nguyên
@@ -354,10 +506,12 @@ async function deploy(id: string): Promise<void> {
 
     const deployedUrl = `https://${domain}`;
     await db.setResult(id, { ...(job.result ?? {}), deployedUrl, publicPort }, "deployed");
+    await updatePlanStep(id, "deploy", "done", deployedUrl);
     await sendEmail(`🚀 Đã deploy: ${idea.title}`, deployedEmail(idea, deployedUrl), "deployed");
     jLog(id, `✓ deployed · ${deployedUrl}`, "summary");
   } catch (e: any) {
     jLog(id, `[ship] FAILED: ${e?.message ?? e}`, "error");
+    await updatePlanStep(id, "deploy", "failed", String(e?.message ?? e));
     await db.setResult(id, { ...(job.result ?? {}), error: String(e?.message ?? e) }, "failed");
   }
 }
@@ -385,27 +539,48 @@ async function generateIdea(): Promise<string> {
   return id;
 }
 
-// Batch (mode 'daemon' mỗi sáng): top-3 → jobs(proposed), rest → idea_pool
+// Batch (mode 'daemon' mỗi sáng):
+//   1) Prototyper (Ollama) enrich brief + score
+//   2) CEO review (Claude) từng idea → rating 1-5 + critique
+//   3) Sort by CEO rating desc → top-K → jobs(proposed), còn lại → idea_pool
+type Reviewed = ScoredIdea & { ceo_rating?: number; ceo_critique?: string };
+
 async function generateIdeaBatch(n = 10, topK = 3): Promise<{ jobIds: string[]; pooled: number }> {
   log(`☀️  Prototyper batch — gom ${n} candidates…`);
   const candidates: ScoredIdea[] = await batchCollect(n);
   log(`   gom được ${candidates.length} candidates (score ${candidates[0]?.score.toFixed(2) ?? "—"} → ${candidates.at(-1)?.score.toFixed(2) ?? "—"})`);
 
+  // CEO review song song (10 items × ~3-8s Claude) — timeout mỗi call 60s.
+  log(`🏛  CEO review ${candidates.length} candidates (Claude, parallel)…`);
+  const reviews = await Promise.all(candidates.map(c => ceoReview(c)));
+  const reviewed: Reviewed[] = candidates.map((c, i) => ({
+    ...c,
+    ceo_rating: reviews[i]?.rating,
+    ceo_critique: reviews[i] ? JSON.stringify(reviews[i]!.critique) : undefined,
+  }));
+
+  // Sort: rating desc, tie-break bằng ollama score.
+  reviewed.sort((a, b) => (b.ceo_rating ?? 0) - (a.ceo_rating ?? 0) || b.score - a.score);
+  const withRating = reviewed.filter(r => r.ceo_rating).length;
+  log(`   CEO OK: ${withRating}/${reviewed.length}. Top-3 rating: ${reviewed.slice(0, 3).map(r => r.ceo_rating ?? "?").join(", ")}`);
+
   const jobIds: string[] = [];
-  for (const c of candidates.slice(0, topK)) {
+  for (const c of reviewed.slice(0, topK)) {
     const plan = await makePlan(c);
     const id = await db.insertJob(c, plan);
+    if (c.ceo_rating) await db.setCeoReview(id, c.ceo_rating, c.ceo_critique ?? "");
     jobIds.push(id);
-    log(`   → job ${id} "${c.title}" (score ${c.score.toFixed(2)})`);
+    log(`   → job ${id} "${c.title}" (${c.ceo_rating ?? "?"}⭐ · score ${c.score.toFixed(2)})`);
   }
   let pooled = 0;
-  for (const c of candidates.slice(topK)) {
+  for (const c of reviewed.slice(topK)) {
     await db.insertPoolItem({
       id: `${today()}-${c.slug}-${c.source.replace(/\W/g, "")}`,
       title: c.title, pitch: c.pitch, why: c.why, source: c.source,
       url: c.url ?? null, type: c.type, score: c.score,
       title_vi: c.title_vi ?? null, pitch_vi: c.pitch_vi ?? null, why_vi: c.why_vi ?? null,
       title_en: c.title_en ?? null, pitch_en: c.pitch_en ?? null, why_en: c.why_en ?? null,
+      ceo_rating: c.ceo_rating ?? null, ceo_critique: c.ceo_critique ?? null,
     });
     pooled++;
   }
@@ -440,7 +615,8 @@ function startServer() {
             started_at: full.started_at, error_detail: full.error_detail,
             title: full.idea?.title, slug: full.idea?.slug, type: full.idea?.type,
             pitch: full.idea?.pitch, source: full.idea?.source,
-            idea: full.idea,   // expose full idea (bao gồm title_vi/pitch_vi/why_vi/_en)
+            idea: full.idea, plan: full.plan,
+            ceo_rating: full.ceo_rating, ceo_critique: full.ceo_critique,
             result: full.result, signs: { approve: sign(full.id, "approve"), reject: sign(full.id, "reject"), deploy: sign(full.id, "deploy") },
           } : null;
         }));
