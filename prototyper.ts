@@ -10,7 +10,7 @@
  * Hoặc được mirotic.ts import: collectIdea() trả về 1 Idea cho pipeline.
  */
 
-import { callLLM, isClaude, isGemini } from "./llm";
+import { callLLM, isClaude, isGemini, isGpt } from "./llm";
 
 const env = (k: string, d = "") => process.env[k] ?? d;
 const bool = (k: string, d = false) => (process.env[k] ?? String(d)) === "true";
@@ -25,8 +25,8 @@ const CFG = {
   ghLang: env("GITHUB_TRENDING_LANG", ""), // vd "typescript"; trống = mọi ngôn ngữ
   ghSince: env("GITHUB_TRENDING_SINCE", "daily"),
 };
-// Prototyper dùng LLM khi: Claude / Gemini có sẵn auth, HOẶC Ollama + USE_REAL_OLLAMA=true.
-const useLLMEnrich = isClaude(CFG.gathererModel) || isGemini(CFG.gathererModel) || CFG.useRealOllama;
+// Prototyper dùng LLM khi: Claude / Gemini / GPT có sẵn auth, HOẶC Ollama + USE_REAL_OLLAMA=true.
+const useLLMEnrich = isClaude(CFG.gathererModel) || isGemini(CFG.gathererModel) || isGpt(CFG.gathererModel) || CFG.useRealOllama;
 
 export type ProjectType = "web-frontend" | "full-stack" | "cli" | "browser-extension";
 export type Idea = {

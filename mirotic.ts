@@ -86,20 +86,22 @@ async function verifyBuildArtifacts(cwd: string): Promise<string[]> {
   return missing;
 }
 
-import { callClaude } from "./llm";
+import { callLLM, isGpt } from "./llm";
 
-// Reasoning nhẹ (CEO review, plan refinement) — Claude non-streaming, không tool use.
-// Retry 2 lần với backoff 2s + 4s để chịu transient rate-limit / CLI hiccup khi chạy 10 song song.
+// Reasoning nhẹ (CEO review, plan refinement) — 1-turn text, route theo model prefix
+// (claude-* → Claude CLI, gpt-* → Codex CLI, gemini-* → Google GenAI REST).
+// Retry 2 lần với backoff 2s + 4s để chịu transient rate-limit / CLI hiccup.
 async function callClaudeText(
   prompt: string,
   opts: { model?: string; timeoutMs?: number; retries?: number } = {},
 ): Promise<string> {
   if (!CONFIG.useRealClaude) return "";
+  const model = opts.model ?? CONFIG.modelBuilder;
   const retries = opts.retries ?? 2;
   let lastErr: any;
   for (let i = 0; i <= retries; i++) {
     try {
-      return await callClaude(opts.model ?? CONFIG.modelBuilder, prompt, { timeoutMs: opts.timeoutMs });
+      return await callLLM(model, prompt, { timeoutMs: opts.timeoutMs });
     } catch (e: any) {
       lastErr = e;
       if (i < retries) await new Promise((r) => setTimeout(r, (i + 1) * 2000));
@@ -217,15 +219,53 @@ Trả JSON DUY NHẤT, không markdown, không giải thích ngoài:
   }
 }
 
+/** Codex CLI agentic session — cho MODEL=gpt-*. Sandbox workspace-write, approval=never.
+ *  Streams JSONL events → job_logs qua callback đơn giản. */
+async function callCodexAgent(prompt: string, cwd: string, jobId: string | undefined, model: string): Promise<string> {
+  const outFile = `/tmp/codex-agent-${jobId ?? Date.now()}-${Math.random().toString(36).slice(2, 8)}.txt`;
+  const proc = Bun.spawn(
+    [
+      "codex", "exec", "-m", model,
+      "-s", "workspace-write", "-C", cwd, "--skip-git-repo-check",
+      "-c", 'approval_policy="never"',
+      "--json", "--output-last-message", outFile,
+      prompt,
+    ],
+    { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env } }
+  );
+  const streamRead = async (stream: ReadableStream<Uint8Array>, isStderr: boolean) => {
+    const reader = stream.getReader(); const dec = new TextDecoder(); let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n"); buf = lines.pop() ?? "";
+      for (const l of lines) {
+        if (!l.trim()) continue;
+        (isStderr ? process.stderr : process.stdout).write(l + "\n");
+        if (jobId) db.appendLog(jobId, `[codex] ${l.slice(0, 400)}`, isStderr ? "error" : "tool").catch(() => {});
+      }
+    }
+  };
+  await Promise.all([streamRead(proc.stdout as any, false), streamRead(proc.stderr as any, true)]);
+  await proc.exited;
+  const final = await Bun.file(outFile).text().catch(() => "");
+  try { await Bun.$`rm -f ${outFile}`.quiet(); } catch {}
+  if (proc.exitCode !== 0) throw new Error(`codex exited ${proc.exitCode}`);
+  return final.trim() || `exited=${proc.exitCode}`;
+}
+
 async function callClaudeCode(
   prompt: string, cwd: string, jobId?: string,
   opts: { model?: string; allowedTools?: string } = {}
 ): Promise<string> {
   if (!CONFIG.useRealClaude) return "[mock-claude-output]";
+  const model = opts.model ?? CONFIG.modelBuilder;
+  // Route GPT-* → Codex CLI (agentic, sandbox default). Claude CLI cho claude-* + fallback.
+  if (isGpt(model)) return callCodexAgent(prompt, cwd, jobId, model);
   const proc = Bun.spawn(
     [
       "claude", "-p", prompt,
-      "--model", opts.model ?? CONFIG.modelBuilder,
+      "--model", model,
       "--allowed-tools", opts.allowedTools ?? "Bash,Edit,Write,Read,Glob,Grep,WebSearch,WebFetch,Skill,Task",
       "--output-format", "stream-json", "--verbose",
     ],

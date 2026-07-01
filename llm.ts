@@ -12,6 +12,7 @@ export type LLMOpts = {
 
 const isClaude = (model: string) => model.startsWith("claude-");
 const isGemini = (model: string) => model.startsWith("gemini-");
+const isGpt = (model: string) => model.startsWith("gpt-") || model.startsWith("o1") || model.startsWith("o3");
 
 export async function callOllama(model: string, prompt: string, opts: LLMOpts = {}): Promise<string> {
   const url = process.env.OLLAMA_URL || "http://localhost:11434";
@@ -71,11 +72,36 @@ export async function callGemini(model: string, prompt: string, opts: LLMOpts = 
   return text;
 }
 
+/** OpenAI GPT via Codex CLI — dùng session Codex đã login (`codex login`). Reasoning effort
+ *  lấy từ ~/.codex/config.toml (mặc định "high"). Có thể override qua opts.thinkingBudget:
+ *  -1 → high, 0 → minimal, >0 → medium. */
+export async function callCodex(model: string, prompt: string, opts: LLMOpts = {}): Promise<string> {
+  const outFile = `/tmp/codex-out-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.txt`;
+  const args = ["exec", "-m", model, "--output-last-message", outFile];
+  if (opts.thinkingBudget !== undefined) {
+    const effort = opts.thinkingBudget < 0 ? "high" : opts.thinkingBudget === 0 ? "minimal" : "medium";
+    args.push("-c", `model_reasoning_effort="${effort}"`);
+  }
+  args.push(prompt);
+  const proc = Bun.spawn(["codex", ...args], { stdout: "pipe", stderr: "pipe", env: { ...process.env } });
+  const timeout = setTimeout(() => proc.kill(), opts.timeoutMs ?? 300_000);
+  await proc.exited;
+  clearTimeout(timeout);
+  const text = await Bun.file(outFile).text().catch(() => "");
+  try { await Bun.$`rm -f ${outFile}`.quiet(); } catch {}
+  if (proc.exitCode !== 0) {
+    const stderr = await new Response(proc.stderr).text().catch(() => "");
+    throw new Error(`codex exited ${proc.exitCode}: ${(stderr || text).slice(0, 300)}`);
+  }
+  return text.trim();
+}
+
 /** Router: model name prefix quyết định backend. */
 export async function callLLM(model: string, prompt: string, opts: LLMOpts = {}): Promise<string> {
   if (isClaude(model)) return callClaude(model, prompt, opts);
   if (isGemini(model)) return callGemini(model, prompt, opts);
+  if (isGpt(model)) return callCodex(model, prompt, opts);
   return callOllama(model, prompt, opts);
 }
 
-export { isClaude, isGemini };
+export { isClaude, isGemini, isGpt };
