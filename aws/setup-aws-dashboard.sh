@@ -37,16 +37,13 @@ rm -f "$ENV_FILE"
 echo "→ [3/4] docker compose up"
 "${SSH_CMD[@]}" "cd /opt/mirotic-dashboard && sudo docker compose down 2>/dev/null || true && sudo docker compose up -d --build"
 
-echo "→ [4/4] Caddy blocks mirotic.luunguyen.dev + kanban→mirotic redirect"
-"${SSH_CMD[@]}" "sudo tee /etc/caddy/sites/dashboard.caddy >/dev/null <<EOF
+echo "→ [4/4] Caddy block mirotic.luunguyen.dev"
+"${SSH_CMD[@]}" 'sudo tee /etc/caddy/sites/dashboard.caddy >/dev/null <<'"'"'EOF'"'"'
 mirotic.luunguyen.dev {
   reverse_proxy localhost:4321
 }
-kanban.luunguyen.dev {
-  redir https://mirotic.luunguyen.dev{uri} 301
-}
 EOF
-sudo systemctl reload caddy"
+sudo systemctl reload caddy'
 
 echo ""
 echo "✓ Dashboard live: https://mirotic.luunguyen.dev"
