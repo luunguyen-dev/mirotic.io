@@ -50,6 +50,8 @@ function parse(r: any): Job {
 export type PoolItem = {
   id: string; created_at: string; title: string; pitch: string; why: string;
   source: string; url: string | null; type: string; score: number; promoted: boolean;
+  title_vi?: string | null; pitch_vi?: string | null; why_vi?: string | null;
+  title_en?: string | null; pitch_en?: string | null; why_en?: string | null;
 };
 
 export type LogEntry = { id: number; job_id: string; ts: string; level: string; line: string };

@@ -203,11 +203,15 @@ async function runBuild(id: string): Promise<void> {
       const prompt = `Bạn là Claude Code agent với gstack skills loaded (autoplan, review, cso, qa, ship, careful, ...).
 Build project trong thư mục hiện tại: ${cwd}
 
-Idea: ${idea.title}
-Why: ${idea.why}
-Pitch: ${idea.pitch}
+Idea (EN): ${idea.title_en ?? idea.title}
+Idea (VN): ${idea.title_vi ?? idea.title}
+Pitch (EN): ${idea.pitch_en ?? idea.pitch}
+Pitch (VN): ${idea.pitch_vi ?? idea.pitch}
+Why (EN): ${idea.why_en ?? idea.why}
+Why (VN): ${idea.why_vi ?? idea.why}
 Type: ${idea.type}
 Stack đề xuất: ${plan.stack}
+UI có thể song ngữ hoặc EN — chọn 1 hướng, note trong README.
 
 Quy trình gstack (chạy tuần tự, KHÔNG hỏi user trong quá trình — autonomous):
 1. **Implement** — scaffold ${plan.stack}, viết core feature theo idea (happy path đủ).
@@ -400,6 +404,8 @@ async function generateIdeaBatch(n = 10, topK = 3): Promise<{ jobIds: string[]; 
       id: `${today()}-${c.slug}-${c.source.replace(/\W/g, "")}`,
       title: c.title, pitch: c.pitch, why: c.why, source: c.source,
       url: c.url ?? null, type: c.type, score: c.score,
+      title_vi: c.title_vi ?? null, pitch_vi: c.pitch_vi ?? null, why_vi: c.why_vi ?? null,
+      title_en: c.title_en ?? null, pitch_en: c.pitch_en ?? null, why_en: c.why_en ?? null,
     });
     pooled++;
   }
@@ -434,6 +440,7 @@ function startServer() {
             started_at: full.started_at, error_detail: full.error_detail,
             title: full.idea?.title, slug: full.idea?.slug, type: full.idea?.type,
             pitch: full.idea?.pitch, source: full.idea?.source,
+            idea: full.idea,   // expose full idea (bao gồm title_vi/pitch_vi/why_vi/_en)
             result: full.result, signs: { approve: sign(full.id, "approve"), reject: sign(full.id, "reject"), deploy: sign(full.id, "deploy") },
           } : null;
         }));

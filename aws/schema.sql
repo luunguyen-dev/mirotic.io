@@ -27,7 +27,10 @@ CREATE TABLE IF NOT EXISTS idea_pool (
   url         TEXT,
   type        TEXT,
   score       REAL,                     -- điểm Ollama rank (0..1), cao = tốt
-  promoted    BOOLEAN DEFAULT FALSE     -- true khi đã chuyển sang bảng jobs
+  promoted    BOOLEAN DEFAULT FALSE,    -- true khi đã chuyển sang bảng jobs
+  -- Song ngữ (Ollama translate title/pitch, Prototyper tự tạo why 2 ngôn ngữ).
+  title_vi    TEXT,  pitch_vi TEXT,  why_vi TEXT,
+  title_en    TEXT,  pitch_en TEXT,  why_en TEXT
 );
 CREATE INDEX IF NOT EXISTS idea_pool_score_idx ON idea_pool (score DESC) WHERE promoted = FALSE;
 

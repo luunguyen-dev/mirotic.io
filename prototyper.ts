@@ -25,7 +25,13 @@ const CFG = {
 };
 
 export type ProjectType = "web-frontend" | "full-stack" | "cli" | "browser-extension";
-export type Idea = { title: string; slug: string; type: ProjectType; pitch: string; why: string; source: string };
+export type Idea = {
+  title: string; slug: string; type: ProjectType;
+  pitch: string; why: string; source: string;
+  // Song ngữ — Ollama dịch title+pitch, Prototyper tự tạo why 2 ngôn ngữ.
+  title_vi?: string; pitch_vi?: string; why_vi?: string;
+  title_en?: string; pitch_en?: string; why_en?: string;
+};
 type Candidate = { title: string; summary: string; source: string; url?: string };
 
 const log = (s = "") => console.log(s);
@@ -134,11 +140,15 @@ function inferType(c: Candidate): ProjectType {
   return "web-frontend";
 }
 
-async function callLLM(prompt: string): Promise<string> {
+async function callLLM(prompt: string, opts: { num_predict?: number; think?: boolean } = {}): Promise<string> {
   const res = await fetch(`${CFG.ollamaUrl}/api/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: CFG.ollamaModel, prompt, stream: false }),
+    body: JSON.stringify({
+      model: CFG.ollamaModel, prompt, stream: false,
+      think: opts.think ?? false,   // tắt thinking cho output nhanh + đủ context
+      options: { num_predict: opts.num_predict ?? 4096, temperature: 0.3 },
+    }),
   });
   return (await res.json()).response;
 }
@@ -154,9 +164,15 @@ const SEED: Idea = {
   title: "TabStash",
   slug: "tabstash",
   type: "web-frontend",
-  pitch: "Snapshot toàn bộ tab đang mở thành 1 list chia sẻ được, lưu local.",
-  why: "Nhỏ, dùng ngay, không cần backend — fallback khi mọi nguồn offline.",
+  pitch: "Snapshot all open tabs into 1 shareable list, stored local.",
+  why: "Small, immediately usable, no backend — fallback when all sources are offline.",
   source: "seed",
+  title_vi: "TabStash",
+  pitch_vi: "Snapshot toàn bộ tab đang mở thành 1 list chia sẻ được, lưu local.",
+  why_vi: "Nhỏ, dùng ngay, không cần backend — fallback khi mọi nguồn offline.",
+  title_en: "TabStash",
+  pitch_en: "Snapshot all open tabs into 1 shareable list, stored local.",
+  why_en: "Small, immediately usable, no backend — fallback when all sources are offline.",
 };
 
 export type ScoredIdea = Idea & { score: number; url?: string };
@@ -174,44 +190,65 @@ export async function batchCollect(n = 10): Promise<ScoredIdea[]> {
     log("   (không gom được nguồn nào → dùng seed)");
     return [{ ...SEED, score: 0.5 }];
   }
-  // Bước 1: lọc theo niche (heuristic) + cắt top 2n để chuyển LLM (nếu bật)
+  // Bước 1: lọc theo niche (heuristic). Chỉ giữ n+2 để Ollama re-rank + translate (giữ output ngắn).
   const shortlist = all
     .map((c) => ({ c, heur: nicheScore(c) }))
     .sort((a, b) => b.heur - a.heur)
-    .slice(0, Math.max(n * 2, 12));
+    .slice(0, n + 2);
 
-  // Bước 2: convert → Idea (heuristic fallback hoặc Ollama batch score)
-  const candidates: ScoredIdea[] = shortlist.map(({ c, heur }) => ({
-    title: c.title.split("/").pop() ?? c.title,
-    slug: slugify(c.title.split("/").pop() ?? c.title),
-    type: inferType(c),
-    pitch: c.summary,
-    why: `Đang trending trên ${c.source}; khớp ngách của bạn.`,
-    source: c.source,
-    url: c.url,
-    score: Math.min(1, heur / 8), // heuristic 0..8 → 0..1
-  }));
+  // Bước 2: convert → Idea (heuristic fallback hoặc Ollama batch score+translate)
+  const candidates: ScoredIdea[] = shortlist.map(({ c, heur }) => {
+    const rawTitle = c.title.split("/").pop() ?? c.title;
+    const whyEn = `Trending on ${c.source}; matches your niche.`;
+    const whyVi = `Đang trending trên ${c.source}; khớp ngách của bạn.`;
+    return {
+      title: rawTitle,
+      slug: slugify(rawTitle),
+      type: inferType(c),
+      pitch: c.summary,
+      why: whyVi,
+      source: c.source,
+      url: c.url,
+      score: Math.min(1, heur / 8),
+      // Fallback: giữ nguyên gốc cho cả 2 ngôn ngữ; Ollama sẽ override title_vi + pitch_vi.
+      title_en: rawTitle,
+      pitch_en: c.summary,
+      why_en: whyEn,
+      title_vi: rawTitle,
+      pitch_vi: c.summary,
+      why_vi: whyVi,
+    };
+  });
 
-  // Bước 3: nếu Ollama bật → re-score qua LLM cho top-2n
+  // Bước 3: Ollama batch score + dịch title/pitch sang tiếng Việt.
   if (CFG.useRealOllama) {
     try {
-      const prompt = `Bạn là "Prototyper". Với mỗi candidate dưới, chấm điểm 0..1 độ phù hợp build-trong-1-ngày
-phục vụ ngách: ${CFG.niches.join(", ")}. Cao = ý tưởng cụ thể, scope nhỏ, có giá trị thực.
+      const prompt = `Bạn là "Prototyper". Với mỗi candidate dưới:
+1. Chấm điểm 0..1 độ phù hợp build-trong-1-ngày phục vụ ngách: ${CFG.niches.join(", ")}.
+   Cao = ý tưởng cụ thể, scope nhỏ, có giá trị thực.
+2. Dịch title + pitch sang tiếng Việt tự nhiên, ngắn gọn.
+   Product/tên riêng giữ nguyên (vd "GitHub", "Vite"). Nếu candidate đã bằng tiếng Việt, giữ nguyên trong title_vi/pitch_vi và điền title_en/pitch_en.
 
 ${candidates.map((c, i) => `${i + 1}. ${c.title} — ${c.pitch}`).join("\n")}
 
-Chỉ trả về JSON array đúng độ dài, không gì khác:
-[{"i":1,"score":0.0..1.0},{"i":2,"score":0.0..1.0},...]`;
-      const raw = await callLLM(prompt);
+Chỉ trả về JSON array (không markdown, không text ngoài):
+[{"i":1,"score":0.85,"title_vi":"...","pitch_vi":"...","title_en":"...","pitch_en":"..."},...]`;
+      const raw = await callLLM(prompt, { num_predict: 8192 });
       const m = raw.match(/\[[\s\S]*\]/);
       if (m) {
-        const scores: Array<{ i: number; score: number }> = JSON.parse(m[0]);
-        for (const s of scores) {
-          if (candidates[s.i - 1]) candidates[s.i - 1].score = Math.max(0, Math.min(1, s.score));
+        const items: Array<{ i: number; score?: number; title_vi?: string; pitch_vi?: string; title_en?: string; pitch_en?: string }> = JSON.parse(m[0]);
+        for (const s of items) {
+          const c = candidates[s.i - 1];
+          if (!c) continue;
+          if (typeof s.score === "number") c.score = Math.max(0, Math.min(1, s.score));
+          if (s.title_vi) c.title_vi = s.title_vi;
+          if (s.pitch_vi) c.pitch_vi = s.pitch_vi;
+          if (s.title_en) c.title_en = s.title_en;
+          if (s.pitch_en) c.pitch_en = s.pitch_en;
         }
       }
     } catch (e: any) {
-      log(`   (Ollama scoring lỗi: ${e?.message ?? e} → giữ heuristic score)`);
+      log(`   (Ollama scoring/translate lỗi: ${e?.message ?? e} → giữ heuristic)`);
     }
   }
 
@@ -231,20 +268,21 @@ export async function collectIdea(): Promise<Idea> {
 
   const shortlist = all.sort((a, b) => nicheScore(b) - nicheScore(a)).slice(0, 12);
 
-  // Dùng LLM local chọn + định dạng (nếu bật). Có thể tự sáng tạo ý mới từ tín hiệu.
+  // Dùng LLM local chọn + định dạng + song ngữ (nếu bật). Có thể tự sáng tạo ý mới từ tín hiệu.
   if (CFG.useRealOllama) {
-    const prompt = `Bạn là "Prototyper". Dưới đây là tín hiệu xu hướng hôm nay (ngách quan tâm: ${CFG.niches.join(
-      ", "
-    )}):
+    const prompt = `Bạn là "Prototyper". Dưới đây là tín hiệu xu hướng hôm nay (ngách quan tâm: ${CFG.niches.join(", ")}):
 ${shortlist.map((c, i) => `${i + 1}. [${c.source}] ${c.title} — ${c.summary}`).join("\n")}
 
 Hãy đề xuất 1 ý tưởng app/web build được trong 1 ngày — có thể lấy cảm hứng từ list trên hoặc tự sáng tạo.
-Chỉ trả về JSON, không gì khác:
-{"title":"...","slug":"...","type":"web-frontend|full-stack|cli|browser-extension","pitch":"1 câu","why":"vì sao đáng làm","source":"nguồn cảm hứng"}`;
+Cần song ngữ (EN + VI). Chỉ trả về JSON, không gì khác:
+{"title":"EN","title_vi":"VN","slug":"...","type":"web-frontend|full-stack|cli|browser-extension","pitch":"EN","pitch_vi":"VN","why":"EN","why_vi":"VN","source":"nguồn cảm hứng"}`;
     try {
       const idea = extractJson(await callLLM(prompt)) as Idea;
       if (idea.title && idea.type) {
         idea.slug = slugify(idea.slug || idea.title);
+        idea.title_en = idea.title_en ?? idea.title;
+        idea.pitch_en = idea.pitch_en ?? idea.pitch;
+        idea.why_en = idea.why_en ?? idea.why;
         return idea;
       }
     } catch {
@@ -252,15 +290,20 @@ Chỉ trả về JSON, không gì khác:
     }
   }
 
-  // Fallback xác định: lấy ứng viên điểm cao nhất, suy ra loại
+  // Fallback xác định: lấy ứng viên điểm cao nhất, suy ra loại. Song ngữ bằng heuristic đơn giản.
   const top = shortlist[0];
+  const rawTitle = top.title.split("/").pop() ?? top.title;
   return {
-    title: top.title.split("/").pop() ?? top.title,
-    slug: slugify(top.title.split("/").pop() ?? top.title),
+    title: rawTitle,
+    slug: slugify(rawTitle),
     type: inferType(top),
     pitch: top.summary,
     why: `Đang trending trên ${top.source}; khớp ngách của bạn.`,
     source: top.source,
+    title_vi: rawTitle, pitch_vi: top.summary,
+    why_vi: `Đang trending trên ${top.source}; khớp ngách của bạn.`,
+    title_en: rawTitle, pitch_en: top.summary,
+    why_en: `Trending on ${top.source}; matches your niche.`,
   };
 }
 
