@@ -35,11 +35,14 @@ const CONFIG = {
   outbox: `${DATA_DIR}/outbox`,
   builds: `${DATA_DIR}/builds`,
   useRealClaude: bool("USE_REAL_CLAUDE", false),
-  // Model per step — swap không cần build lại
-  modelGatherer: env("MODEL_GATHERER", "qwen3:8b"),
-  modelPlanner: env("MODEL_PLANNER", "qwen3-coder:30b"),
-  modelBuilder: env("MODEL_BUILDER", "claude-sonnet-4-6"),
-  modelReviewer: env("MODEL_REVIEWER", "qwen3-coder:30b"),
+  // Model per role/skill — swap qua env không cần build lại.
+  modelGatherer: env("MODEL_GATHERER", "claude-haiku-4-5-20251001"),
+  modelCeo:      env("MODEL_CEO",      "claude-sonnet-4-6"),
+  modelPlanner:  env("MODEL_PLANNER",  "claude-haiku-4-5-20251001"),
+  modelBuilder:  env("MODEL_BUILDER",  "claude-sonnet-4-6"),
+  modelReviewer: env("MODEL_REVIEWER", "claude-haiku-4-5-20251001"),
+  modelCso:      env("MODEL_CSO",      "claude-sonnet-4-6"),
+  modelQa:       env("MODEL_QA",       "claude-haiku-4-5-20251001"),
   resendApiKey: env("RESEND_API_KEY"),
   emailFrom: env("EMAIL_FROM", "daily-loop@example.com"),
   emailTo: env("EMAIL_TO"),
@@ -93,15 +96,16 @@ async function callClaudeText(prompt: string, opts: { model?: string; timeoutMs?
 
 // Base checklist: các milestone Builder + Deployer track (coarse).
 const BASE_STEPS: PlanStep[] = [
-  { key: "spec", label_en: "Spec approved", label_vi: "Đã duyệt spec", status: "done" },
-  { key: "scaffold", label_en: "Scaffold project", label_vi: "Scaffold project", status: "pending" },
-  { key: "implement", label_en: "Implement core feature", label_vi: "Implement core feature", status: "pending" },
-  { key: "review", label_en: "/review + /cso pass", label_vi: "/review + /cso pass", status: "pending" },
-  { key: "qa", label_en: "/qa smoke test", label_vi: "/qa smoke test", status: "pending" },
-  { key: "artifacts", label_en: "Dockerfile + compose + ship.sh", label_vi: "Dockerfile + compose + ship.sh", status: "pending" },
-  { key: "github", label_en: "Private GitHub repo pushed", label_vi: "Repo private đã push", status: "pending" },
-  { key: "local", label_en: "docker compose up local", label_vi: "docker compose up local", status: "pending" },
-  { key: "deploy", label_en: "Deploy AWS + Caddy live", label_vi: "Deploy AWS + Caddy live", status: "pending" },
+  { key: "spec",      label_en: "Spec approved",                       label_vi: "Đã duyệt spec",                    status: "done" },
+  { key: "scaffold",  label_en: "Scaffold project",                    label_vi: "Scaffold project",                 status: "pending" },
+  { key: "implement", label_en: "Implement core feature (Sonnet)",     label_vi: "Implement core (Sonnet)",          status: "pending" },
+  { key: "artifacts", label_en: "Dockerfile + compose + ship.sh",      label_vi: "Dockerfile + compose + ship.sh",   status: "pending" },
+  { key: "github",    label_en: "Private GitHub repo pushed",          label_vi: "Repo private đã push",             status: "pending" },
+  { key: "review",    label_en: "/review pass (Haiku)",                label_vi: "/review pass (Haiku)",             status: "pending" },
+  { key: "cso",       label_en: "/cso security audit (Sonnet)",        label_vi: "/cso security audit (Sonnet)",     status: "pending" },
+  { key: "qa",        label_en: "/qa smoke test (Haiku)",              label_vi: "/qa smoke test (Haiku)",           status: "pending" },
+  { key: "local",     label_en: "docker compose up local",             label_vi: "docker compose up local",          status: "pending" },
+  { key: "deploy",    label_en: "Deploy AWS + Caddy live",             label_vi: "Deploy AWS + Caddy live",          status: "pending" },
 ];
 
 async function generateDetailedPlan(idea: Idea, jobId: string): Promise<Plan> {
@@ -131,7 +135,7 @@ Stack: ${stack}
 
 Trả JSON DUY NHẤT không markdown:
 {"scope_cut":"1 câu rõ MVP giới hạn","build_steps":["step 1","step 2","step 3","step 4","step 5"],"taste_decisions":["decision 1","decision 2","decision 3"],"test_plan":["test 1","test 2","test 3"]}`;
-      const raw = await callClaudeText(prompt, { timeoutMs: 60_000 });
+      const raw = await callClaudeText(prompt, { model: CONFIG.modelPlanner, timeoutMs: 60_000 });
       const m = raw.match(/\{[\s\S]*\}/);
       if (m) {
         const p = JSON.parse(m[0]);
@@ -185,7 +189,7 @@ Chấm PHẢN BIỆN: nêu weakness thẳng, đừng nịnh. Nếu scope > 1 ng�
 Trả JSON DUY NHẤT, không markdown, không giải thích ngoài:
 {"rating": <1..5>, "critique_en": "3-4 câu strengths + weaknesses + verdict", "critique_vi": "3-4 câu tiếng Việt"}`;
   try {
-    const raw = await callClaudeText(prompt, { timeoutMs: 60_000 });
+    const raw = await callClaudeText(prompt, { model: CONFIG.modelCeo, timeoutMs: 60_000 });
     const m = raw.match(/\{[\s\S]*\}/);
     if (!m) return null;
     const parsed = JSON.parse(m[0]);
@@ -199,13 +203,16 @@ Trả JSON DUY NHẤT, không markdown, không giải thích ngoài:
   }
 }
 
-async function callClaudeCode(prompt: string, cwd: string, jobId?: string): Promise<string> {
+async function callClaudeCode(
+  prompt: string, cwd: string, jobId?: string,
+  opts: { model?: string; allowedTools?: string } = {}
+): Promise<string> {
   if (!CONFIG.useRealClaude) return "[mock-claude-output]";
   const proc = Bun.spawn(
     [
       "claude", "-p", prompt,
-      "--model", CONFIG.modelBuilder,
-      "--allowed-tools", "Bash,Edit,Write,Read,Glob,Grep,WebSearch,WebFetch,Skill,Task",
+      "--model", opts.model ?? CONFIG.modelBuilder,
+      "--allowed-tools", opts.allowedTools ?? "Bash,Edit,Write,Read,Glob,Grep,WebSearch,WebFetch,Skill,Task",
       "--output-format", "stream-json", "--verbose",
     ],
     { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env } }
@@ -325,67 +332,125 @@ async function runBuild(id: string): Promise<void> {
   jLog(id, `🤖 EXECUTOR (Claude Code + gstack) — ${id}`);
 
   if (CONFIG.useRealClaude) {
-    try {
-      const prompt = `Bạn là Claude Code agent với gstack skills loaded (autoplan, review, cso, qa, ship, careful, ...).
-Build project trong thư mục hiện tại: ${cwd}
-
-Idea (EN): ${idea.title_en ?? idea.title}
-Idea (VN): ${idea.title_vi ?? idea.title}
-Pitch (EN): ${idea.pitch_en ?? idea.pitch}
-Pitch (VN): ${idea.pitch_vi ?? idea.pitch}
-Why (EN): ${idea.why_en ?? idea.why}
-Why (VN): ${idea.why_vi ?? idea.why}
+    const ideaBrief = `Idea (EN/VN): ${idea.title_en ?? idea.title} / ${idea.title_vi ?? idea.title}
+Pitch (EN/VN): ${idea.pitch_en ?? idea.pitch} / ${idea.pitch_vi ?? idea.pitch}
+Why now (EN): ${idea.why_now_en ?? idea.why_en ?? "—"}
+Features (EN): ${(idea.features_en ?? []).join("; ") || "—"}
+Target user: ${idea.target_user_en ?? "—"}
 Type: ${idea.type}
-Stack đề xuất: ${plan.stack}
-UI có thể song ngữ hoặc EN — chọn 1 hướng, note trong README.
+Stack đề xuất: ${plan.stack}`;
 
-Quy trình gstack (chạy tuần tự, KHÔNG hỏi user trong quá trình — autonomous):
-1. **Implement** — scaffold ${plan.stack}, viết core feature theo idea (happy path đủ).
-   - Container EXPOSE port 3000 nội bộ (host map qua port khác khi deploy).
-2. **BẮT BUỘC 3 file** trong thư mục gốc:
-   - \`Dockerfile\` — multi-stage nếu cần, runtime nhẹ. EXPOSE 3000. CMD chạy server.
-   - \`docker-compose.yml\` — 1 service tên \`app\`, build: ., expose 3000, restart: unless-stopped.
-     KHÔNG hardcode ports mapping — orchestrator sẽ ghi đè qua docker-compose.override.yml khi deploy.
-   - \`ship.sh\` — copy NGUYÊN VĂN từ template:
+    // ─── SESSION A: IMPLEMENT (Sonnet) — scaffold + code + artifacts + git+push ───
+    try {
+      const implementPrompt = `Bạn là Claude Code + gstack. cwd = ${cwd}.
+
+${ideaBrief}
+
+SESSION NÀY = IMPLEMENT + ARTIFACTS + GITHUB. Sessions /review /cso /qa RIÊNG sẽ chạy sau — KHÔNG chạy chúng trong session này.
+
+Nhiệm vụ:
+1. Scaffold ${plan.stack} + implement core feature (happy path đủ, không empty state).
+2. BẮT BUỘC 3 file ở root:
+   - \`Dockerfile\` — multi-stage nếu cần. EXPOSE 3000. CMD server.
+   - \`docker-compose.yml\` — service 'app', build: ., expose: [3000], restart: unless-stopped.
+     KHÔNG hardcode ports (orchestrator sẽ override khi deploy).
+   - \`ship.sh\` — copy NGUYÊN VĂN từ template, không sửa:
      \`cp /Users/luunguyen/Workspaces/mirotic.io/templates/ship.sh.tmpl ship.sh && chmod +x ship.sh\`
-     ĐỪNG sửa nội dung template.
-3. **\`/review\`** — review codebase, fix issues nghiêm trọng.
-4. **\`/cso\`** — security review, fix HIGH/MEDIUM findings (LOW ghi vào README).
-5. **\`/qa\`** — smoke test: \`docker compose up -d\`, \`curl http://localhost:3000\` healthcheck, verify happy path render đúng. \`docker compose down\` sau khi xong.
-6. **README.md** — 1 dòng pitch + 2 lệnh: \`docker compose up\` và \`./ship.sh\`.
-7. **Git + GitHub**:
+3. \`README.md\` — 1 dòng pitch + 2 lệnh: \`docker compose up\` và \`./ship.sh\`.
+4. Git + GitHub:
    - \`git init && git add -A && git commit -m "init"\`
    - \`gh repo create luunguyen-dev/daily-${idea.slug} --private --source=. --push\`
 
-KHÔNG chạy \`/ship\` (deploy AWS task riêng).
-KHÔNG cần CI/CD GitHub Actions.
-KHÔNG hỏi user — chạy autonomous, mọi quyết định nhỏ tự pick rồi note vào commit.`;
-      jLog(id, `[claude] gọi Claude Code — có thể mất vài phút…`);
+KHÔNG hỏi user — autonomous.`;
+      jLog(id, `[implement] ${CONFIG.modelBuilder} — scaffold + core + artifacts + git+push…`);
       await updatePlanStep(id, "scaffold", "in_progress");
       await updatePlanStep(id, "implement", "in_progress");
-      const out = await callClaudeCode(prompt, cwd, id);
-      jLog(id, `[claude] xong: ${out.slice(0, 200)}`);
+      await callClaudeCode(implementPrompt, cwd, id, { model: CONFIG.modelBuilder });
       await updatePlanStep(id, "scaffold", "done");
       await updatePlanStep(id, "implement", "done");
-      // Claude được yêu cầu chạy /review /cso /qa trong prompt — mark done sau khi Claude exit=0.
-      await updatePlanStep(id, "review", "done");
-      await updatePlanStep(id, "qa", "done");
       await updatePlanStep(id, "github", "done");
       const missing = await verifyBuildArtifacts(cwd);
       if (missing.length) {
-        const err = `Builder thiếu artifact bắt buộc: ${missing.join(", ")}`;
+        const err = `Builder thiếu artifact: ${missing.join(", ")}`;
         jLog(id, `[verify] FAIL — ${err}`, "error");
         await updatePlanStep(id, "artifacts", "failed", err);
         await db.setResult(id, { error: err, cwd }, "failed");
         return;
       }
       await updatePlanStep(id, "artifacts", "done");
-      jLog(id, `[verify] OK — Dockerfile + compose + ship.sh đủ, compose config hợp lệ`, "summary");
+      jLog(id, `[verify] OK — Dockerfile + compose + ship.sh đủ`, "summary");
     } catch (e: any) {
-      jLog(id, `[claude] FAILED: ${e?.message ?? e}`, "error");
+      jLog(id, `[implement] FAILED: ${e?.message ?? e}`, "error");
       await updatePlanStep(id, "implement", "failed", String(e?.message ?? e));
       await db.setResult(id, { error: String(e?.message ?? e) }, "failed");
       return;
+    }
+
+    const skillTools = "Bash,Edit,Write,Read,Glob,Grep,Skill,Task";
+
+    // ─── SESSION B: REVIEW (Haiku) — gstack /review ───
+    try {
+      jLog(id, `[review] ${CONFIG.modelReviewer} — gstack /review…`);
+      await updatePlanStep(id, "review", "in_progress");
+      const reviewPrompt = `cwd = ${cwd}. Codebase vừa qua Implement session.
+
+Load skill /review từ gstack (invoke slash command). Đọc kỹ codebase, tìm:
+- Bugs critical
+- Missing error handling
+- Code smells rõ ràng
+
+Auto-apply fixes qua Edit/Write. Nếu sạch, không fix.
+\`git add -A && git commit -m "review: <summary>"\` nếu có fix (không cần push, session sau push).
+KHÔNG hỏi user.`;
+      await callClaudeCode(reviewPrompt, cwd, id, { model: CONFIG.modelReviewer, allowedTools: skillTools });
+      await updatePlanStep(id, "review", "done");
+    } catch (e: any) {
+      jLog(id, `[review] FAILED (không dừng build): ${e?.message ?? e}`, "error");
+      await updatePlanStep(id, "review", "failed", String(e?.message ?? e));
+    }
+
+    // ─── SESSION C: CSO (Sonnet) — gstack /cso security audit ───
+    try {
+      jLog(id, `[cso] ${CONFIG.modelCso} — gstack /cso security audit…`);
+      await updatePlanStep(id, "cso", "in_progress");
+      const csoPrompt = `cwd = ${cwd}. Codebase đã qua Review.
+
+Load skill /cso từ gstack. Security audit toàn diện, phân loại HIGH/MEDIUM/LOW.
+- Auto-apply fixes HIGH + MEDIUM qua Edit/Write.
+- LOW: append vào README.md dạng "## Known low-severity findings".
+
+\`git add -A && git commit -m "cso: <summary>" && git push origin main\` nếu có commit.
+KHÔNG hỏi user.`;
+      await callClaudeCode(csoPrompt, cwd, id, { model: CONFIG.modelCso, allowedTools: skillTools });
+      await updatePlanStep(id, "cso", "done");
+    } catch (e: any) {
+      jLog(id, `[cso] FAILED (không dừng build): ${e?.message ?? e}`, "error");
+      await updatePlanStep(id, "cso", "failed", String(e?.message ?? e));
+    }
+
+    // ─── SESSION D: QA (Haiku) — gstack /qa smoke test ───
+    try {
+      jLog(id, `[qa] ${CONFIG.modelQa} — gstack /qa smoke test…`);
+      await updatePlanStep(id, "qa", "in_progress");
+      const qaPrompt = `cwd = ${cwd}. Codebase đã qua Implement/Review/CSO.
+
+Load skill /qa từ gstack. Smoke test:
+1. Tạo docker-compose.override.yml TẠM ở cwd:
+   services:
+     app:
+       ports:
+         - "3000:3000"
+2. \`docker compose up -d --build\`. Wait 3-5s.
+3. Curl \`http://localhost:3000\` hoặc \`docker compose exec app wget -qO- http://localhost:3000 | head -c 500\`. Verify HTTP 200 + HTML/JSON hợp lệ khớp idea.
+4. \`docker compose down\`.
+5. \`rm docker-compose.override.yml\` (KHÔNG commit file này).
+
+Nếu container không lên trong 30s → log stderr và exit non-zero. KHÔNG hỏi user.`;
+      await callClaudeCode(qaPrompt, cwd, id, { model: CONFIG.modelQa, allowedTools: skillTools });
+      await updatePlanStep(id, "qa", "done");
+    } catch (e: any) {
+      jLog(id, `[qa] FAILED (không dừng build): ${e?.message ?? e}`, "error");
+      await updatePlanStep(id, "qa", "failed", String(e?.message ?? e));
     }
   } else {
     const steps: [string, string][] = [
