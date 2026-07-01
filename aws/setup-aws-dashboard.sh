@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # setup-aws-dashboard.sh — Deploy dashboard (mode=serve) lên EC2, public qua Caddy
-# tại kanban.luunguyen.dev. Chạy:
+# tại mirotic.luunguyen.dev. Chạy:
 #   AWS_HOST=... SSH_KEY=... SSH_USER=ec2-user ./setup-aws-dashboard.sh
-# Yêu cầu: Caddy đã cài (chạy setup-aws-caddy.sh trước), DNS kanban.luunguyen.dev → AWS_HOST.
+# Yêu cầu: Caddy đã cài (chạy setup-aws-caddy.sh trước), DNS mirotic.luunguyen.dev → AWS_HOST.
 set -euo pipefail
 cd "$(dirname "$0")"
 ROOT="$(cd .. && pwd)"
@@ -16,7 +16,7 @@ echo "→ [1/4] Build .env.dashboard (chỉ vars dashboard cần)"
 ENV_FILE=/tmp/.env.dashboard.$$
 {
   echo "PORT=4321"
-  echo "BASE_URL=https://kanban.luunguyen.dev"
+  echo "BASE_URL=https://mirotic.luunguyen.dev"
   echo "DATABASE_URL=postgresql://$(grep ^DB_USER= "$ROOT/.env" | cut -d= -f2-):$(grep ^DB_PASS= "$ROOT/.env" | cut -d= -f2- | sed 's/@/%40/g')@localhost:5432/$(grep ^DB_NAME= "$ROOT/.env" | cut -d= -f2-)"
   echo "HMAC_SECRET=$(grep ^HMAC_SECRET= "$ROOT/.env" | cut -d= -f2-)"
   echo "USE_REAL_CLAUDE=false"
@@ -37,14 +37,17 @@ rm -f "$ENV_FILE"
 echo "→ [3/4] docker compose up"
 "${SSH_CMD[@]}" "cd /opt/mirotic-dashboard && sudo docker compose down 2>/dev/null || true && sudo docker compose up -d --build"
 
-echo "→ [4/4] Caddy block kanban.luunguyen.dev → :4321"
+echo "→ [4/4] Caddy blocks mirotic.luunguyen.dev + kanban→mirotic redirect"
 "${SSH_CMD[@]}" "sudo tee /etc/caddy/sites/dashboard.caddy >/dev/null <<EOF
-kanban.luunguyen.dev {
+mirotic.luunguyen.dev {
   reverse_proxy localhost:4321
+}
+kanban.luunguyen.dev {
+  redir https://mirotic.luunguyen.dev{uri} 301
 }
 EOF
 sudo systemctl reload caddy"
 
 echo ""
-echo "✓ Dashboard live: https://kanban.luunguyen.dev"
+echo "✓ Dashboard live: https://mirotic.luunguyen.dev"
 echo "  (chờ vài giây cho Caddy lấy cert lần đầu)"

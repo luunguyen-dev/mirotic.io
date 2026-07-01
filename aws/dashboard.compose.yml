@@ -1,5 +1,5 @@
 # dashboard.compose.yml — chạy dashboard (mode=serve) trên EC2.
-# Đọc DATABASE_URL local (postgres cùng host). Caddy reverse-proxy kanban.luunguyen.dev → :4321.
+# Đọc DATABASE_URL local (postgres cùng host). Caddy reverse-proxy mirotic.luunguyen.dev → :4321.
 services:
   dashboard:
     build: .

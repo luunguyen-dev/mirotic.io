@@ -62,7 +62,7 @@
 
 <header>
   <h1>Mirotic</h1>
-  <a href="/">← Kanban</a>
+  <a href="/ideas">💡 Ideas</a>
   <a href="/projects" class="active">📂 Projects</a>
   <span class="meta" id="meta">loading…</span>
 </header>
@@ -81,7 +81,7 @@ async function renderList() {
   if (projects.length === 0) {
     main.innerHTML = `<div style="color:#666;text-align:center;padding:60px">
       <div style="font-size:16px;margin-bottom:8px">Chưa có project nào</div>
-      <div style="font-size:12px">Vào <a href="/" style="color:#7ba8e0">Kanban</a> → chọn card <b>demo-ready</b> → click <b>Promote → Project</b></div>
+      <div style="font-size:12px">Vào <a href="/ideas" style="color:#7ba8e0">Ideas</a> → chọn card <b>demo-ready</b> → click <b>Promote → Project</b></div>
     </div>`;
     return;
   }

@@ -880,8 +880,12 @@ function startServer() {
         return Response.json({ ...p, issues });
       }
 
-      // ─── Static dashboard ────────────────────────────────────
+      // ─── Static views ────────────────────────────────────────
+      // Root → redirect to /ideas (Kanban board).
       if (path === "/" || path === "/index.html") {
+        return Response.redirect("/ideas", 302);
+      }
+      if (path === "/ideas" || path === "/ideas/") {
         const html = await Bun.file(`${import.meta.dir}/dashboard.html`).text().catch(() => null);
         if (html) return new Response(html, { headers: { "Content-Type": "text/html" } });
       }
