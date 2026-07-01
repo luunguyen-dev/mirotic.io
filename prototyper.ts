@@ -150,9 +150,14 @@ function inferType(c: Candidate): ProjectType {
   return "web-frontend";
 }
 
-// Wrapper mini: prompt qua router — model tuỳ CFG.gathererModel (Claude hoặc Ollama).
+// Wrapper mini: route prompt qua model theo prefix. Gemini flash → thinkingBudget=-1 (High/dynamic)
+// để có reasoning depth cho synthesis; Pro/Opus không cần vì mặc định đã reasoning tốt.
 const callLLMForGather = (prompt: string, opts: { num_predict?: number } = {}) =>
-  callLLM(CFG.gathererModel, prompt, { num_predict: opts.num_predict, timeoutMs: 180_000 });
+  callLLM(CFG.gathererModel, prompt, {
+    num_predict: opts.num_predict,
+    timeoutMs: 180_000,
+    thinkingBudget: /gemini-.*flash/i.test(CFG.gathererModel) ? -1 : undefined,
+  });
 
 function extractJson(s: string): any {
   const a = s.indexOf("{");
@@ -231,7 +236,7 @@ Trả JSON array ${n} items, không markdown, không giải thích:
 "risk_en":"1 câu rủi ro/giả định lớn nhất","risk_vi":"...",
 "demo_hours":6,
 "source":"insp: HN 'X' (reframe as Y)  |  original"},...]`;
-      const raw = await callLLMForGather(prompt, { num_predict: 24576 });
+      const raw = await callLLMForGather(prompt, { num_predict: 65536 });
       const m = raw.match(/\[[\s\S]*\]/);
       if (m) {
         const items = JSON.parse(m[0]) as any[];

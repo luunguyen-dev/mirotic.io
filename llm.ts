@@ -3,7 +3,12 @@
  * Ưu tiên dùng chung cho Prototyper (batch enrich) + CEO review + Plan refinement.
  */
 
-export type LLMOpts = { num_predict?: number; timeoutMs?: number; think?: boolean };
+export type LLMOpts = {
+  num_predict?: number;
+  timeoutMs?: number;
+  think?: boolean;              // Ollama: bật/tắt thinking output
+  thinkingBudget?: number;       // Gemini: -1 = dynamic (High), 0 = off, >0 = fixed tokens
+};
 
 const isClaude = (model: string) => model.startsWith("claude-");
 const isGemini = (model: string) => model.startsWith("gemini-");
@@ -50,11 +55,13 @@ export async function callGemini(model: string, prompt: string, opts: LLMOpts = 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (key.startsWith("AIza")) headers["x-goog-api-key"] = key;
   else headers["Authorization"] = `Bearer ${key}`;
+  const generationConfig: any = { temperature: 0.7, maxOutputTokens: opts.num_predict ?? 8192 };
+  if (opts.thinkingBudget !== undefined) generationConfig.thinkingConfig = { thinkingBudget: opts.thinkingBudget };
   const res = await fetch(url, {
     method: "POST", headers,
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: opts.num_predict ?? 8192 },
+      generationConfig,
     }),
     signal: opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined,
   });
