@@ -61,7 +61,7 @@
   .drawer .field label { font-size: 11px; text-transform: uppercase; color: #666; letter-spacing: 0.06em; display: block; margin-bottom: 4px; }
   .drawer pre { background: #07070a; border: 1px solid #1c1c1f; border-radius: 5px; padding: 10px; overflow: auto; font-size: 12px; color: #ccc; max-height: 240px; }
   .drawer .actions { display: flex; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid #1c1c1f; }
-  .drawer .actions a { padding: 6px 12px; border-radius: 5px; text-decoration: none; font-size: 12px; font-weight: 500; border: 1px solid; }
+  .drawer .actions a { padding: 6px 12px; border-radius: 5px; text-decoration: none; font-size: 12px; font-weight: 500; border: 1px solid; cursor: pointer; user-select: none; }
   .drawer .actions a.primary { background: #1f4d39; border-color: #2d6e54; color: #a3d9a5; }
   .drawer .actions a.primary:hover { background: #2a6347; }
   .drawer .actions a.danger { background: #4d1f1f; border-color: #6e2d2d; color: #e07b7b; }
@@ -209,11 +209,11 @@ async function openDrawer(id) {
   const content = document.getElementById("drawer-content");
   const actions = [];
   if (j.status === "proposed") {
-    actions.push(`<a class="primary" href="/approve/${id}?t=${j.signs.approve}">Approve</a>`);
-    actions.push(`<a class="danger" href="/reject/${id}?t=${j.signs.reject}">Reject</a>`);
+    actions.push(`<a class="primary" onclick="doAction('${id}','approve','${j.signs.approve}')">Approve</a>`);
+    actions.push(`<a class="danger" onclick="doAction('${id}','reject','${j.signs.reject}')">Reject</a>`);
   }
   if (j.status === "demo-ready") {
-    actions.push(`<a class="primary" href="/deploy/${id}?t=${j.signs.deploy}">Deploy</a>`);
+    actions.push(`<a class="primary" onclick="doAction('${id}','deploy','${j.signs.deploy}')">Deploy</a>`);
   }
   const titleEn = j.idea?.title_en || j.idea?.title || j.id;
   const titleVi = j.idea?.title_vi || j.idea?.title || "";
@@ -264,7 +264,7 @@ async function openDrawer(id) {
     <div class="field"><label>Type / Source</label><div>${escapeHtml(j.idea?.type || "?")} · ${escapeHtml(j.idea?.source || "?")}</div></div>
     ${j.error_detail ? `<div class="field"><label>Error</label><pre style="color:#e07b7b">${escapeHtml(j.error_detail)}</pre></div>` : ""}
     ${stepsBlock}
-    ${j.result ? `<div class="field"><label>Result</label><pre>${escapeHtml(JSON.stringify(j.result, null, 2))}</pre></div>` : ""}
+    ${renderResult(j.result)}
     <div class="field"><label>Logs</label><div class="log-tail" id="log-tail"><div class="log-empty">loading…</div></div></div>
     ${actions.length ? `<div class="actions">${actions.join("")}</div>` : ""}`;
   document.getElementById("drawer").classList.add("open");
@@ -289,7 +289,7 @@ async function pollLogs() {
     const ts = l.ts?.slice(11, 19) ?? "";
     const line = document.createElement("div");
     line.className = `log-line ${l.level || "info"}`;
-    line.innerHTML = `<span class="ts">${escapeHtml(ts)}</span><span class="lv">${levelIcon(l.level)}</span>${escapeHtml(l.line || "")}`;
+    line.innerHTML = `<span class="ts">${escapeHtml(ts)}</span><span class="lv">${levelIcon(l.level)}</span>${linkify(l.line || "")}`;
     tail.appendChild(line);
     logSinceId = Math.max(logSinceId, l.id);
   }
@@ -304,6 +304,38 @@ function closeDrawer() {
   document.getElementById("drawer").classList.remove("open");
   clearInterval(logPollTimer);
   currentDrawerJob = null;
+}
+
+async function doAction(id, action, token) {
+  const r = await fetch(`/${action}/${id}?t=${token}`);
+  if (!r.ok) { alert(`Action ${action} failed: HTTP ${r.status}`); return; }
+  closeDrawer();
+  await load();
+}
+
+function renderResult(result) {
+  if (!result) return "";
+  const rows = [];
+  const urlBits = [
+    ["Local URL", result.localUrl, "test docker local"],
+    ["Deployed URL", result.deployedUrl, "live production"],
+    ["Repo", result.repoUrl, "GitHub private"],
+  ];
+  for (const [label, url, hint] of urlBits) {
+    if (url) rows.push(`<div style="margin:2px 0">
+      <span style="color:#666;font-size:11px;display:inline-block;min-width:110px">${label}</span>
+      <a href="${escapeHtml(url)}" target="_blank" rel="noopener" style="color:#7ba8e0">${escapeHtml(url)}</a>
+      <span style="color:#555;font-size:10px;margin-left:8px">${hint}</span>
+    </div>`);
+  }
+  if (result.publicPort) rows.push(`<div style="color:#666;font-size:11px">host port: ${result.publicPort}</div>`);
+  if (result.error) rows.push(`<div style="color:#e07b7b;font-size:12px;margin-top:4px">${escapeHtml(result.error)}</div>`);
+  return rows.length ? `<div class="field"><label>Result</label>${rows.join("")}</div>` : "";
+}
+
+function linkify(text) {
+  const parts = String(text || "").split(/(https?:\/\/[^\s]+)/g);
+  return parts.map(p => p.match(/^https?:\/\//) ? `<a href="${escapeHtml(p)}" target="_blank" rel="noopener" style="color:#7ba8e0">${escapeHtml(p)}</a>` : escapeHtml(p)).join("");
 }
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
