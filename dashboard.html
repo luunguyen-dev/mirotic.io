@@ -201,20 +201,37 @@ async function load() {
 let currentDrawerJob = null;
 let logSinceId = 0;
 let logPollTimer = null;
+let builderChoices = null;   // { choices: {key: modelName}, default: "sonnet" }
+let selectedBuilderKey = null;
+
+async function loadBuilderChoices() {
+  if (builderChoices) return builderChoices;
+  builderChoices = await fetch("/api/builder-choices").then(r => r.json()).catch(() => ({ choices: {}, default: "sonnet" }));
+  return builderChoices;
+}
 
 async function openDrawer(id) {
-  const j = await fetch(`/api/jobs/${id}`).then(r => r.json());
+  const [j, bc] = await Promise.all([fetch(`/api/jobs/${id}`).then(r => r.json()), loadBuilderChoices()]);
   currentDrawerJob = id;
   logSinceId = 0;
+  selectedBuilderKey = bc.default;   // reset per drawer
   const content = document.getElementById("drawer-content");
   const actions = [];
+  let builderPicker = "";
   if (j.status === "proposed") {
-    actions.push(`<a class="primary" onclick="doAction('${id}','approve','${j.signs.approve}')">Approve</a>`);
+    // Model picker cho Builder — Approve URL sẽ include ?model=<key>.
+    const opts = Object.keys(bc.choices || {}).map(k =>
+      `<option value="${escapeHtml(k)}" ${k === bc.default ? "selected" : ""}>${escapeHtml(k)} — ${escapeHtml(bc.choices[k])}</option>`).join("");
+    builderPicker = `<div class="field"><label>Builder model</label>
+      <select id="builder-model-select" onchange="selectedBuilderKey=this.value" style="width:100%;padding:6px;border-radius:5px;background:#1a1a1e;color:#ddd;border:1px solid #2a2a2e;font:inherit">${opts}</select>
+    </div>`;
+    actions.push(`<a class="primary" onclick="doApprove('${id}','${j.signs.approve}')">Approve</a>`);
     actions.push(`<a class="danger" onclick="doAction('${id}','reject','${j.signs.reject}')">Reject</a>`);
   }
   if (j.status === "demo-ready") {
     actions.push(`<a class="primary" onclick="doAction('${id}','deploy','${j.signs.deploy}')">Deploy</a>`);
   }
+  const builderInfo = j.builder_model ? `<div class="sub" style="margin-top:-8px">Builder: <code>${escapeHtml(j.builder_model)}</code></div>` : "";
   const titleEn = j.idea?.title_en || j.idea?.title || j.id;
   const titleVi = j.idea?.title_vi || j.idea?.title || "";
   const pitchEn = j.idea?.pitch_en || j.idea?.pitch || "";
@@ -250,6 +267,7 @@ async function openDrawer(id) {
     <h3>${escapeHtml(titleEn)}</h3>
     ${titleVi && titleVi !== titleEn ? `<div style="color:#888;font-style:italic;font-size:13px;margin-top:-4px;margin-bottom:4px">${escapeHtml(titleVi)}</div>` : ""}
     <div class="sub">${escapeHtml(j.id)} · status <b>${escapeHtml(j.status)}</b>${stars ? ` · <span style="color:#e0d47b">${stars}</span>` : ""}</div>
+    ${builderInfo}
     ${critique.en || critique.vi ? `<div class="field"><label>CEO critique ${stars}</label>
       <div>${escapeHtml(critique.en || "—")}</div>
       ${critique.vi ? `<div style="color:#888;font-style:italic;margin-top:2px">${escapeHtml(critique.vi)}</div>` : ""}
@@ -266,6 +284,7 @@ async function openDrawer(id) {
     ${stepsBlock}
     ${renderResult(j.result)}
     <div class="field"><label>Logs</label><div class="log-tail" id="log-tail"><div class="log-empty">loading…</div></div></div>
+    ${builderPicker}
     ${actions.length ? `<div class="actions">${actions.join("")}</div>` : ""}`;
   document.getElementById("drawer").classList.add("open");
   clearInterval(logPollTimer);
@@ -309,6 +328,14 @@ function closeDrawer() {
 async function doAction(id, action, token) {
   const r = await fetch(`/${action}/${id}?t=${token}`);
   if (!r.ok) { alert(`Action ${action} failed: HTTP ${r.status}`); return; }
+  closeDrawer();
+  await load();
+}
+
+async function doApprove(id, token) {
+  const modelKey = selectedBuilderKey || (builderChoices?.default ?? "sonnet");
+  const r = await fetch(`/approve/${id}?t=${token}&model=${encodeURIComponent(modelKey)}`);
+  if (!r.ok) { alert(`Approve failed: HTTP ${r.status} — ${await r.text().catch(()=>"")}`); return; }
   closeDrawer();
   await load();
 }

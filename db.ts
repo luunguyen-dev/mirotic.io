@@ -27,6 +27,7 @@ export type Job = {
   error_detail: string | null;
   ceo_rating: number | null;
   ceo_critique: string | null;  // JSON blob {en, vi}
+  builder_model: string | null; // user pick trước Approve; null = CONFIG.modelBuilder
 };
 
 const SCHEMA = `CREATE TABLE IF NOT EXISTS jobs (
@@ -48,6 +49,7 @@ function parse(r: any): Job {
     error_detail: r.error_detail ?? null,
     ceo_rating: r.ceo_rating ?? null,
     ceo_critique: r.ceo_critique ?? null,
+    builder_model: r.builder_model ?? null,
   };
 }
 
@@ -71,6 +73,7 @@ interface Backend {
   setRejectReason(id: string, reason: string): Promise<void>;
   setCeoReview(id: string, rating: number, critique: string): Promise<void>;
   setPlan(id: string, plan: any): Promise<void>;
+  setBuilderModel(id: string, model: string): Promise<void>;
   countStartedToday(): Promise<number>;
   claimNextApproved(): Promise<Job | null>;        // approved → building (+started_at)
   claimNextDeployRequested(): Promise<Job | null>; // deploy-requested → deploying
@@ -111,6 +114,9 @@ function pgBackend(url: string): Backend {
     },
     async setPlan(id, plan) {
       await sql`UPDATE jobs SET plan_json = ${JSON.stringify(plan)} WHERE id = ${id}`;
+    },
+    async setBuilderModel(id, model) {
+      await sql`UPDATE jobs SET builder_model = ${model} WHERE id = ${id}`;
     },
     async countStartedToday() {
       const r = await sql`SELECT count(*)::int AS n FROM jobs WHERE started_at IS NOT NULL AND left(started_at, 10) = ${today()}`;
@@ -180,6 +186,10 @@ function sqliteBackend(): Backend {
       db.run(`UPDATE jobs SET ceo_rating = ?, ceo_critique = ? WHERE id = ?`, [rating, critique, id]);
     },
     async setPlan(id, plan) { db.run(`UPDATE jobs SET plan_json = ? WHERE id = ?`, [JSON.stringify(plan), id]); },
+    async setBuilderModel(id, model) {
+      try { db.run(`ALTER TABLE jobs ADD COLUMN builder_model TEXT`); } catch {}
+      db.run(`UPDATE jobs SET builder_model = ? WHERE id = ?`, [model, id]);
+    },
     async countStartedToday() {
       const r = db.query(`SELECT count(*) AS n FROM jobs WHERE started_at IS NOT NULL AND substr(started_at,1,10) = ?`).get(today()) as any;
       return r.n;
@@ -240,6 +250,7 @@ export const setResult = (id: string, result: any, status: JobStatus) => backend
 export const setRejectReason = (id: string, reason: string) => backend.setRejectReason(id, reason);
 export const setCeoReview = (id: string, rating: number, critique: string) => backend.setCeoReview(id, rating, critique);
 export const setPlan = (id: string, plan: any) => backend.setPlan(id, plan);
+export const setBuilderModel = (id: string, model: string) => backend.setBuilderModel(id, model);
 export const countStartedToday = () => backend.countStartedToday();
 export const claimNextApproved = () => backend.claimNextApproved();
 export const claimNextDeployRequested = () => backend.claimNextDeployRequested();

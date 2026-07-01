@@ -12,9 +12,10 @@ CREATE TABLE IF NOT EXISTS jobs (
   ceo_rating    INTEGER,       -- CEO review rating (1-5 stars). Cao = ý tưởng đáng làm.
   ceo_critique  TEXT           -- CEO critique (song ngữ JSON: {en, vi})
 );
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS error_detail TEXT;
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS ceo_rating   INTEGER;
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS ceo_critique TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS error_detail   TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS ceo_rating     INTEGER;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS ceo_critique   TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS builder_model  TEXT;  -- user pick trước Approve (null = CONFIG.modelBuilder)
 CREATE INDEX IF NOT EXISTS jobs_status_rating_idx ON jobs (status, ceo_rating DESC);
 CREATE INDEX IF NOT EXISTS jobs_status_idx  ON jobs (status);
 CREATE INDEX IF NOT EXISTS jobs_created_idx ON jobs (created_at DESC);

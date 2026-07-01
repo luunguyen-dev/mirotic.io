@@ -416,10 +416,11 @@ Nhiệm vụ:
    - \`gh repo create luunguyen-dev/daily-${idea.slug} --private --source=. --push\`
 
 KHÔNG hỏi user — autonomous.`;
-      jLog(id, `[implement] ${CONFIG.modelBuilder} — scaffold + core + artifacts + git+push…`);
+      const builderModel = job.builder_model || CONFIG.modelBuilder;
+      jLog(id, `[implement] ${builderModel} — scaffold + core + artifacts + git+push…`);
       await updatePlanStep(id, "scaffold", "in_progress");
       await updatePlanStep(id, "implement", "in_progress");
-      await callClaudeCode(implementPrompt, cwd, id, { model: CONFIG.modelBuilder });
+      await callClaudeCode(implementPrompt, cwd, id, { model: builderModel });
       await updatePlanStep(id, "scaffold", "done");
       await updatePlanStep(id, "implement", "done");
       await updatePlanStep(id, "github", "done");
@@ -707,6 +708,13 @@ const page = (b: string, status = 200) =>
 
 const ACTIONS: Record<string, JobStatus> = { approve: "approved", reject: "rejected", deploy: "deploy-requested" };
 
+// Model builder user có thể pick khi Approve. Key = short name hiển thị; value = model name gửi CLI.
+// Mở rộng khi wire gpt-5.5 / gemini agentic mượt: chỉ thêm 1 entry.
+const BUILDER_CHOICES: Record<string, string> = {
+  sonnet: "claude-sonnet-5",
+  opus: "claude-opus-4-8",
+};
+
 function startServer() {
   Bun.serve({
     port: CONFIG.port,
@@ -725,6 +733,7 @@ function startServer() {
             pitch: full.idea?.pitch, source: full.idea?.source,
             idea: full.idea, plan: full.plan,
             ceo_rating: full.ceo_rating, ceo_critique: full.ceo_critique,
+            builder_model: full.builder_model,
             result: full.result, signs: { approve: sign(full.id, "approve"), reject: sign(full.id, "reject"), deploy: sign(full.id, "deploy") },
           } : null;
         }));
@@ -747,6 +756,9 @@ function startServer() {
       if (path === "/api/pool") {
         return Response.json(await db.listPool(100));
       }
+      if (path === "/api/builder-choices") {
+        return Response.json({ choices: BUILDER_CHOICES, default: "sonnet" });
+      }
 
       // ─── Static dashboard ────────────────────────────────────
       if (path === "/" || path === "/index.html") {
@@ -759,6 +771,15 @@ function startServer() {
       if (action in ACTIONS) {
         if (!verify(id, action, url.searchParams.get("t") ?? "")) return page("❌ Token sai", 403);
         if (!(await db.getJob(id))) return page("❌ Không thấy job", 404);
+        // Approve: cho phép user pick builder model qua ?model=<key> (whitelist BUILDER_CHOICES).
+        if (action === "approve") {
+          const modelKey = url.searchParams.get("model");
+          if (modelKey) {
+            const modelName = BUILDER_CHOICES[modelKey];
+            if (!modelName) return page(`❌ Unknown builder model: ${modelKey}. Valid: ${Object.keys(BUILDER_CHOICES).join(", ")}`, 400);
+            await db.setBuilderModel(id, modelName);
+          }
+        }
         await db.setStatus(id, ACTIONS[action]);
         return page(`✅ <code>${id}</code> → <b>${ACTIONS[action]}</b>. <a href="/">← dashboard</a>`);
       }
