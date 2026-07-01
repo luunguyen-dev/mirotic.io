@@ -1,16 +1,16 @@
 /**
- * daily-loop.ts — Orchestrator điều khiển bởi DATABASE (web là UI).
+ * mirotic.ts — Orchestrator điều khiển bởi DATABASE (web là UI).
  *
  * Luồng: Prototyper sinh ý tưởng (status=proposed) → bạn duyệt trên web (→approved)
  *  → poller mỗi 5' nhận (1 ý tưởng/ngày) → build → demo-ready (docker chạy local + repo
  *  private + CI/CD) → bạn test ở nhà → bấm Deploy trên web (→deploy-requested) → deploy AWS.
  *
  * Modes:
- *   bun run daily-loop.ts daemon    # server + sinh ý tưởng hằng ngày + poller 5' (mặc định Docker)
- *   bun run daily-loop.ts demo      # 1 vòng đầy đủ trong bộ nhớ, mock (~6s)
- *   bun run daily-loop.ts generate  # sinh 1 ý tưởng proposed rồi thoát
- *   bun run daily-loop.ts poll       # chạy 1 chu kỳ poller rồi thoát
- *   bun run daily-loop.ts serve      # chỉ dashboard + action endpoints
+ *   bun run mirotic.ts daemon    # server + sinh ý tưởng hằng ngày + poller 5' (mặc định Docker)
+ *   bun run mirotic.ts demo      # 1 vòng đầy đủ trong bộ nhớ, mock (~6s)
+ *   bun run mirotic.ts generate  # sinh 1 ý tưởng proposed rồi thoát
+ *   bun run mirotic.ts poll       # chạy 1 chu kỳ poller rồi thoát
+ *   bun run mirotic.ts serve      # chỉ dashboard + action endpoints
  */
 
 import { createHmac } from "node:crypto";
@@ -44,7 +44,7 @@ const CONFIG = {
   modelCso:      env("MODEL_CSO",      "claude-sonnet-4-6"),
   modelQa:       env("MODEL_QA",       "claude-haiku-4-5-20251001"),
   resendApiKey: env("RESEND_API_KEY"),
-  emailFrom: env("EMAIL_FROM", "daily-loop@example.com"),
+  emailFrom: env("EMAIL_FROM", "mirotic@example.com"),
   emailTo: env("EMAIL_TO"),
 };
 mkdirSync(CONFIG.outbox, { recursive: true });

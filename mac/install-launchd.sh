@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# install-launchd.sh — Đăng ký daily-loop worker với launchd (Mac).
+# install-launchd.sh — Đăng ký mirotic worker với launchd (Mac).
 # Chạy:  ./mac/install-launchd.sh         # cài + start
 #        ./mac/install-launchd.sh stop    # dừng
 #        ./mac/install-launchd.sh remove  # gỡ hẳn
 #        ./mac/install-launchd.sh status  # xem trạng thái
 set -euo pipefail
 
-LABEL="com.miroticio.daily-loop"
+LABEL="io.mirotic"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PLIST_SRC="$ROOT/mac/$LABEL.plist"
 PLIST_DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
-LOG_DIR="$HOME/Library/Logs/daily-loop"
+LOG_DIR="$HOME/Library/Logs/mirotic"
 
 cmd="${1:-install}"
 

@@ -23,19 +23,19 @@ ENV_FILE=/tmp/.env.dashboard.$$
   echo "USE_REAL_OLLAMA=false"
 } > "$ENV_FILE"
 
-echo "→ [2/4] rsync source → /opt/daily-loop-dashboard/"
-"${SSH_CMD[@]}" "sudo mkdir -p /opt/daily-loop-dashboard && sudo chown $SSH_USER:$SSH_USER /opt/daily-loop-dashboard"
+echo "→ [2/4] rsync source → /opt/mirotic-dashboard/"
+"${SSH_CMD[@]}" "sudo mkdir -p /opt/mirotic-dashboard && sudo chown $SSH_USER:$SSH_USER /opt/mirotic-dashboard"
 rsync -az --delete \
   --exclude='.git' --exclude='data' --exclude='node_modules' --exclude='.env' \
   --exclude='*.pem' --exclude='templates' --exclude='aws' \
   -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=accept-new" \
-  "$ROOT/" "$SSH_USER@$AWS_HOST:/opt/daily-loop-dashboard/"
-scp -i "$SSH_KEY" "$ROOT/aws/dashboard.compose.yml" "$SSH_USER@$AWS_HOST:/opt/daily-loop-dashboard/docker-compose.yml"
-scp -i "$SSH_KEY" "$ENV_FILE" "$SSH_USER@$AWS_HOST:/opt/daily-loop-dashboard/.env.dashboard"
+  "$ROOT/" "$SSH_USER@$AWS_HOST:/opt/mirotic-dashboard/"
+scp -i "$SSH_KEY" "$ROOT/aws/dashboard.compose.yml" "$SSH_USER@$AWS_HOST:/opt/mirotic-dashboard/docker-compose.yml"
+scp -i "$SSH_KEY" "$ENV_FILE" "$SSH_USER@$AWS_HOST:/opt/mirotic-dashboard/.env.dashboard"
 rm -f "$ENV_FILE"
 
 echo "→ [3/4] docker compose up"
-"${SSH_CMD[@]}" "cd /opt/daily-loop-dashboard && sudo docker compose down 2>/dev/null || true && sudo docker compose up -d --build"
+"${SSH_CMD[@]}" "cd /opt/mirotic-dashboard && sudo docker compose down 2>/dev/null || true && sudo docker compose up -d --build"
 
 echo "→ [4/4] Caddy block kanban.luunguyen.dev → :4321"
 "${SSH_CMD[@]}" "sudo tee /etc/caddy/sites/dashboard.caddy >/dev/null <<EOF

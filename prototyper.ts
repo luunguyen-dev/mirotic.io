@@ -7,7 +7,7 @@
  *
  * Chạy độc lập để xem hôm nay gom được gì:
  *   bun run prototyper.ts
- * Hoặc được daily-loop.ts import: collectIdea() trả về 1 Idea cho pipeline.
+ * Hoặc được mirotic.ts import: collectIdea() trả về 1 Idea cho pipeline.
  */
 
 import { callLLM, isClaude } from "./llm";
@@ -76,7 +76,7 @@ async function fromHN(limit = 10): Promise<Candidate[]> {
 async function fromGitHubTrending(limit = 10): Promise<Candidate[]> {
   try {
     const url = `https://github.com/trending${CFG.ghLang ? "/" + CFG.ghLang : ""}?since=${CFG.ghSince}`;
-    const htmlText = await (await fetch(url, { headers: { "User-Agent": "daily-loop-prototyper" } })).text();
+    const htmlText = await (await fetch(url, { headers: { "User-Agent": "mirotic-prototyper" } })).text();
     const rows = htmlText.split('class="Box-row"').slice(1);
     return rows
       .slice(0, limit)
@@ -181,7 +181,7 @@ export type ScoredIdea = Idea & { score: number; url?: string };
 /**
  * Batch collect: gom nhiều ý tưởng + score (Ollama nếu bật, không thì heuristic).
  * Trả về N ý tưởng sắp xếp theo score desc.
- * Caller (daily-loop daemon) tự quyết: top-K → jobs(proposed), còn lại → idea_pool.
+ * Caller (mirotic daemon) tự quyết: top-K → jobs(proposed), còn lại → idea_pool.
  */
 export async function batchCollect(n = 10): Promise<ScoredIdea[]> {
   const [hn, gh, ph, bl] = await Promise.all([fromHN(), fromGitHubTrending(), fromProductHunt(), fromBacklog()]);

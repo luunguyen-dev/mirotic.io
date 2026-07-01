@@ -3,12 +3,12 @@
 services:
   dashboard:
     build: .
-    image: daily-loop
-    container_name: daily-loop-dashboard
+    image: mirotic
+    container_name: mirotic-dashboard
     restart: unless-stopped
     network_mode: host                          # truy cập postgres :5432 ở localhost
     env_file:
       - .env.dashboard
-    command: ["bun", "run", "daily-loop.ts", "serve"]
+    command: ["bun", "run", "mirotic.ts", "serve"]
     volumes:
       - ./data:/app/data                        # chỉ cần đọc/ghi outbox, không phải build/

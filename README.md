@@ -22,7 +22,7 @@ Web ↔ orchestrator **decoupled hoàn toàn qua DB**: web chỉ đọc/ghi Post
 |---|---|---|
 | `prototyper.ts` | Thu thập ý tưởng (HN + GitHub Trending + Product Hunt + backlog) | ✅ chạy thật (HN/GitHub không cần key) |
 | `db.ts` | Kho ý tưởng dùng chung — **Postgres** (có `DATABASE_URL`) hoặc **SQLite** (dev) | ✅ tested cả 2 |
-| `daily-loop.ts` | Orchestrator: sinh ý tưởng + **poller 5'** + gate 1/ngày + executor + deploy | ✅ logic tested (execution mock) |
+| `mirotic.ts` | Orchestrator: sinh ý tưởng + **poller 5'** + gate 1/ngày + executor + deploy | ✅ logic tested (execution mock) |
 | `aws/setup-aws-db.sh` | Dựng Postgres trên EC2 + mở network + schema | ✅ syntax-checked |
 | **Web quản lý ý tưởng** | UI duyệt/đổi status/nút Deploy (đọc/ghi Postgres) | ⏳ chưa build |
 | Executor thật (Claude Code + gstack) | Build + tạo repo private + CI/CD | ⏳ mock (bật `USE_REAL_CLAUDE`) |
@@ -32,7 +32,7 @@ Web ↔ orchestrator **decoupled hoàn toàn qua DB**: web chỉ đọc/ghi Post
 cp .env.example .env          # sửa HMAC_SECRET; DATABASE_URL trống = SQLite dev
 docker compose up -d --build  # daemon: dashboard + sinh ý tưởng + poller 5'
 ```
-Hoặc Bun trực tiếp: `DATA_DIR=./data bun run daily-loop.ts <mode>`
+Hoặc Bun trực tiếp: `DATA_DIR=./data bun run mirotic.ts <mode>`
 
 | Mode | Làm gì |
 |---|---|
@@ -46,7 +46,7 @@ Xem riêng Prototyper gom gì: `bun run prototyper.ts`
 
 ## Database
 - **Postgres** khi đặt `DATABASE_URL` (web + orchestrator dùng chung). Dựng nhanh: `cd aws && INSTANCE_ID=i-… SSH_KEY=~/.ssh/key.pem ./setup-aws-db.sh`.
-- **SQLite** khi không có `DATABASE_URL` — file `DATA_DIR/daily-loop.db`, cho dev không cần Postgres.
+- **SQLite** khi không có `DATABASE_URL` — file `DATA_DIR/mirotic.db`, cho dev không cần Postgres.
 - Cùng một bảng `jobs` (xem `aws/schema.sql`) → web đọc/ghi trực tiếp.
 
 ## Còn mock / cần làm tiếp

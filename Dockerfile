@@ -12,11 +12,11 @@ RUN apt-get update \
 RUN npm install -g bun @anthropic-ai/claude-code
 
 WORKDIR /app
-COPY daily-loop.ts prototyper.ts db.ts llm.ts inject-idea.ts dashboard.html ./
+COPY mirotic.ts prototyper.ts db.ts llm.ts inject-idea.ts dashboard.html ./
 
 ENV NODE_ENV=production \
     DATA_DIR=/app/data
 EXPOSE 4321
 
 # Mặc định: daemon = server approve/reject + tự lên lịch chạy morning mỗi ngày (thay launchd).
-CMD ["bun", "run", "daily-loop.ts", "daemon"]
+CMD ["bun", "run", "mirotic.ts", "daemon"]

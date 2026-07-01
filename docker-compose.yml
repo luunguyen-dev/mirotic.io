@@ -1,8 +1,8 @@
 services:
   orchestrator:
     build: .
-    image: daily-loop
-    container_name: daily-loop
+    image: mirotic
+    container_name: mirotic
     restart: unless-stopped
     ports:
       - "4321:4321"

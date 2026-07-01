@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- launchd plist for daily-loop worker (Mac native). Install: ./mac/install-launchd.sh -->
+<!-- launchd plist for mirotic worker (Mac native). Install: ./mac/install-launchd.sh -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.miroticio.daily-loop</string>
+  <string>io.mirotic</string>
 
   <key>ProgramArguments</key>
   <array>
     <string>/opt/homebrew/bin/bun</string>
     <string>run</string>
-    <string>daily-loop.ts</string>
+    <string>mirotic.ts</string>
     <string>worker</string>
   </array>
 
@@ -38,10 +38,10 @@
   </dict>
 
   <key>StandardOutPath</key>
-  <string>__HOME__/Library/Logs/daily-loop/stdout.log</string>
+  <string>__HOME__/Library/Logs/mirotic/stdout.log</string>
 
   <key>StandardErrorPath</key>
-  <string>__HOME__/Library/Logs/daily-loop/stderr.log</string>
+  <string>__HOME__/Library/Logs/mirotic/stderr.log</string>
 
   <key>ThrottleInterval</key>
   <integer>30</integer>

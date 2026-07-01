@@ -1,7 +1,7 @@
 /**
  * db.ts — Kho ý tưởng dùng chung.
  *   - Có DATABASE_URL  → Postgres (Bun.sql built-in, zero-dep) — để web + orchestrator cùng truy cập.
- *   - Không có          → SQLite local (DATA_DIR/daily-loop.db) cho dev nhanh.
+ *   - Không có          → SQLite local (DATA_DIR/mirotic.db) cho dev nhanh.
  * Mọi hàm async, cùng một interface → đổi backend không ảnh hưởng phần còn lại.
  */
 
@@ -154,7 +154,7 @@ function pgBackend(url: string): Backend {
 function sqliteBackend(): Backend {
   const dir = process.env.DATA_DIR ?? "./data";
   mkdirSync(dir, { recursive: true });
-  const db = new Database(`${dir}/daily-loop.db`);
+  const db = new Database(`${dir}/mirotic.db`);
   return {
     async init() {
       db.run(SCHEMA);
@@ -229,7 +229,7 @@ export async function initDb(): Promise<void> {
   const url = process.env.DATABASE_URL;
   backend = url ? pgBackend(url) : sqliteBackend();
   await backend.init();
-  console.log(`🗄️  DB: ${url ? "Postgres" : `SQLite (${process.env.DATA_DIR ?? "./data"}/daily-loop.db)`}`);
+  console.log(`🗄️  DB: ${url ? "Postgres" : `SQLite (${process.env.DATA_DIR ?? "./data"}/mirotic.db)`}`);
 }
 
 export const insertJob = (idea: Idea, plan: any) => backend.insertJob(idea, plan);

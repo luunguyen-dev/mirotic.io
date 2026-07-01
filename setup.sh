@@ -60,7 +60,7 @@ else
   _IID="$(getenv INSTANCE_ID)"; _KEY="$(getenv SSH_KEY)"; _USER="$(getenv SSH_USER)"
   _DBN="$(getenv DB_NAME)"; _DBU="$(getenv DB_USER)"; _DBP="$(getenv DB_PASS)"; _REG="$(getenv AWS_REGION)"
   ( cd aws && AWS_REGION="$_REG" INSTANCE_ID="$_IID" SSH_KEY="$_KEY" SSH_USER="${_USER:-ubuntu}" \
-      DB_NAME="${_DBN:-dailyloop}" DB_USER="${_DBU:-dailyloop}" DB_PASS="$_DBP" bash setup-aws-db.sh )
+      DB_NAME="${_DBN:-mirotic}" DB_USER="${_DBU:-mirotic}" DB_PASS="$_DBP" bash setup-aws-db.sh )
   [ -f aws/DATABASE_URL.txt ] || die "Provisioning Postgres thất bại."
   upsert DATABASE_URL "$(cat aws/DATABASE_URL.txt)"
   ok "Postgres sẵn sàng, đã ghi DATABASE_URL vào .env"
@@ -99,7 +99,7 @@ ok "container đang chạy"
 # ---------- 7. Smoke test ----------
 bold "[7/7] Smoke test"
 sleep 4
-docker compose exec -T orchestrator bun run daily-loop.ts generate >/dev/null 2>&1 && ok "sinh thử 1 ý tưởng OK" || echo "   (smoke test bỏ qua — kiểm tra: docker compose logs)"
+docker compose exec -T orchestrator bun run mirotic.ts generate >/dev/null 2>&1 && ok "sinh thử 1 ý tưởng OK" || echo "   (smoke test bỏ qua — kiểm tra: docker compose logs)"
 
 echo ""
 bold "✅ XONG."
