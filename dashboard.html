@@ -176,6 +176,12 @@ async function renderStatusBar() {
     const txt = rel < 60 ? `${rel}m` : `${Math.floor(rel/60)}h ${rel%60}m`;
     return `<span class="stat attention"><span class="k">next retry</span><span class="v">${txt}</span></span>`;
   })() : "";
+  // Model cooldown chip
+  const modelCoolStat = (s.modelCooldowns && s.modelCooldowns > 0) ? (() => {
+    const rel = s.soonestModelReset ? Math.max(0, Math.floor((new Date(s.soonestModelReset).getTime() - Date.now()) / 60000)) : 0;
+    const txt = rel < 60 ? `${rel}m` : `${Math.floor(rel/60)}h ${rel%60}m`;
+    return `<span class="stat error" title="Xem /api/models" onclick="window.open('/api/models')"><span class="k">model cool</span><span class="v">${s.modelCooldowns} · ${txt}</span></span>`;
+  })() : "";
   const nextBatch = new Date(s.nextBatchAt);
   const nextRel = Math.max(0, Math.floor((nextBatch.getTime() - Date.now()) / 60000));
   const nextTxt = nextRel < 60 ? `${nextRel}m` : `${Math.floor(nextRel / 60)}h ${nextRel % 60}m`;
@@ -196,7 +202,7 @@ async function renderStatusBar() {
     ? `<span class="label">đang chạy</span>${pills.join("")}`
     : `<span class="none">không có executor nào đang xử lý</span>`;
 
-  bar.innerHTML = `${gate}${nextSlotStat}<span class="sep"></span>${queue}<span class="sep"></span>${nextStat}${retryStat}${pollStat}<span class="sep"></span>${runningBlock}`;
+  bar.innerHTML = `${gate}${nextSlotStat}<span class="sep"></span>${queue}${modelCoolStat}<span class="sep"></span>${nextStat}${retryStat}${pollStat}<span class="sep"></span>${runningBlock}`;
 }
 
 async function load() {

@@ -89,6 +89,7 @@ async function verifyBuildArtifacts(cwd: string): Promise<string[]> {
 }
 
 import { callLLM, isGpt } from "./llm";
+import * as registry from "./model-registry";
 
 /**
  * Parse rate-limit error từ Claude output.
@@ -119,9 +120,8 @@ function parseRateLimitReset(text: string): string | null {
   return target.toISOString();
 }
 
-// Reasoning nhẹ (CEO review, plan refinement) — 1-turn text, route theo model prefix
-// (claude-* → Claude CLI, gpt-* → Codex CLI, gemini-* → Google GenAI REST).
-// Retry 2 lần với backoff 2s + 4s để chịu transient rate-limit / CLI hiccup.
+// Reasoning nhẹ (CEO review, plan refinement) — 1-turn text.
+// Retry 2 lần với backoff 2s + 4s để chịu transient CLI hiccup.
 async function callClaudeText(
   prompt: string,
   opts: { model?: string; timeoutMs?: number; retries?: number } = {},
@@ -139,6 +139,42 @@ async function callClaudeText(
     }
   }
   throw lastErr;
+}
+
+/**
+ * Router text-tier: pick model theo role, auto-fallback nếu cooldown / limit.
+ * Ollama qwen3:8b luôn ở cuối list — nếu tất cả cloud fail, dùng nó (chất lượng thấp).
+ */
+async function callTextWithFallback(
+  role: registry.TextRole,
+  prompt: string,
+  opts: { timeoutMs?: number; num_predict?: number } = {},
+): Promise<{ model: string; output: string }> {
+  const tried: string[] = [];
+  for (let attempt = 0; attempt < 4; attempt++) {
+    let model: string;
+    try { model = await registry.pickModel("text", role); }
+    catch (e: any) {
+      throw Object.assign(new Error(`[${role}] all text models cooling down; earliest reset ${e.earliestReset}`),
+        { code: "ALL_COOLDOWN", earliestReset: e.earliestReset });
+    }
+    if (tried.includes(model)) throw new Error(`[${role}] router exhausted after ${tried.join(", ")}`);
+    tried.push(model);
+    try {
+      const output = await callLLM(model, prompt, { timeoutMs: opts.timeoutMs, num_predict: opts.num_predict });
+      return { model, output };
+    } catch (e: any) {
+      const errMsg = String(e?.message ?? e);
+      const resetAt = parseRateLimitReset(errMsg);
+      if (resetAt) {
+        log(`   [${role}] ${model} HIT LIMIT → cooldown ${resetAt}, thử fallback`);
+        await registry.markCooldown(model, resetAt, `${role} text call hit limit`);
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error(`[${role}] exhausted fallback (tried ${tried.join(", ")})`);
 }
 
 // Base checklist: các milestone Builder + Deployer track (coarse).
@@ -182,7 +218,8 @@ Stack: ${stack}
 
 Trả JSON DUY NHẤT không markdown:
 {"scope_cut":"1 câu rõ MVP giới hạn","build_steps":["step 1","step 2","step 3","step 4","step 5"],"taste_decisions":["decision 1","decision 2","decision 3"],"test_plan":["test 1","test 2","test 3"]}`;
-      const raw = await callClaudeText(prompt, { model: CONFIG.modelPlanner, timeoutMs: 60_000 });
+      const { model: planModel, output: raw } = await callTextWithFallback("planner", prompt, { timeoutMs: 60_000 });
+      jLog(jobId, `[plan] refined via ${planModel}`, "info");
       const m = raw.match(/\{[\s\S]*\}/);
       if (m) {
         const p = JSON.parse(m[0]);
@@ -236,7 +273,7 @@ Chấm PHẢN BIỆN: nêu weakness thẳng, đừng nịnh. Nếu scope > 1 ng�
 Trả JSON DUY NHẤT, không markdown, không giải thích ngoài:
 {"rating": <1..5>, "critique_en": "3-4 câu strengths + weaknesses + verdict", "critique_vi": "3-4 câu tiếng Việt"}`;
   try {
-    const raw = await callClaudeText(prompt, { model: CONFIG.modelCeo, timeoutMs: 60_000 });
+    const { output: raw } = await callTextWithFallback("ceo", prompt, { timeoutMs: 60_000 });
     const m = raw.match(/\{[\s\S]*\}/);
     if (!m) return null;
     const parsed = JSON.parse(m[0]);
@@ -283,6 +320,55 @@ async function callCodexAgent(prompt: string, cwd: string, jobId: string | undef
   try { await Bun.$`rm -f ${outFile}`.quiet(); } catch {}
   if (proc.exitCode !== 0) throw new Error(`codex exited ${proc.exitCode}`);
   return final.trim() || `exited=${proc.exitCode}`;
+}
+
+/**
+ * Try running an agentic session với auto-fallback qua registry.
+ * Nếu model hit limit → parseRateLimitReset → markCooldown → thử next model.
+ * Trả về { model, output }. Throw nếu tất cả model trong tier đều cooldown.
+ */
+async function runAgenticWithFallback(
+  scope: string,                    // "implement" | "review" | "cso" | "qa" — cho log
+  complexity: registry.ComplexityClass,
+  prompt: string, cwd: string, jobId: string,
+  opts: { allowedTools?: string } = {},
+): Promise<{ model: string; output: string }> {
+  const tried: string[] = [];
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    let model: string;
+    try { model = await registry.pickModel("agentic", complexity); }
+    catch (e: any) {
+      // Tất cả cooldown → throw kèm earliest reset để caller requeue.
+      throw Object.assign(new Error(`[${scope}] all agentic models cooling down; earliest reset ${e.earliestReset}`),
+        { code: "ALL_COOLDOWN", earliestReset: e.earliestReset });
+    }
+    if (tried.includes(model)) {
+      // Router trả về cùng 1 model → đã hết fallback trong list.
+      throw new Error(`[${scope}] router exhausted after trying ${tried.join(", ")}`);
+    }
+    tried.push(model);
+    const est = registry.estimateCost(model);
+    jLog(jobId, `[${scope}] ${model} (${complexity}, est $${est.toFixed(3)})`);
+    try {
+      const output = await callClaudeCode(prompt, cwd, jobId, { model, allowedTools: opts.allowedTools });
+      return { model, output };
+    } catch (e: any) {
+      const errMsg = String(e?.message ?? e);
+      // Đọc thêm 40 dòng log gần nhất để catch rate-limit message trong assistant text.
+      const recent = await db.getLogs(jobId, 0, 500).catch(() => [] as any[]);
+      const combined = errMsg + "\n" + recent.slice(-40).map((l: any) => l.line ?? "").join("\n");
+      const resetAt = parseRateLimitReset(combined);
+      if (resetAt) {
+        jLog(jobId, `[${scope}] ${model} HIT LIMIT — cooldown đến ${resetAt}, thử fallback…`, "error");
+        await registry.markCooldown(model, resetAt, `${scope} session hit limit`);
+        continue;  // try next model
+      }
+      // Non-rate-limit error → không fallback, propagate
+      throw e;
+    }
+  }
+  throw new Error(`[${scope}] exhausted ${MAX_ATTEMPTS} attempts (tried ${tried.join(", ")})`);
 }
 
 async function callClaudeCode(
@@ -417,6 +503,14 @@ async function runBuild(id: string): Promise<void> {
   jLog(id, `🤖 EXECUTOR (Claude Code + gstack) — ${id}`);
 
   if (CONFIG.useRealClaude) {
+    // Complexity từ CEO rating → chọn tier priority. 4 sessions dùng cùng class để giữ context.
+    const complexity: registry.ComplexityClass = registry.complexityFromRating(job.ceo_rating);
+    const jobBuilderModel = job.builder_model;   // user pick manually — override auto routing
+    const estimateTotal = ["complex","medium","simple"].includes(complexity)
+      ? registry.estimateCost(registry.AGENTIC_PRIORITY[complexity][0]) * 4
+      : 0;
+    jLog(id, `📊 Build plan: complexity=${complexity}, est ~$${estimateTotal.toFixed(2)} (4 sessions × primary model)`, "summary");
+
     const ideaBrief = `Idea (EN/VN): ${idea.title_en ?? idea.title} / ${idea.title_vi ?? idea.title}
 Pitch (EN/VN): ${idea.pitch_en ?? idea.pitch} / ${idea.pitch_vi ?? idea.pitch}
 Why now (EN): ${idea.why_now_en ?? idea.why_en ?? "—"}
@@ -447,11 +541,15 @@ Nhiệm vụ:
    - \`gh repo create luunguyen-dev/mirotic-${idea.slug} --private --source=. --push\`
 
 KHÔNG hỏi user — autonomous.`;
-      const builderModel = job.builder_model || CONFIG.modelBuilder;
-      jLog(id, `[implement] ${builderModel} — scaffold + core + artifacts + git+push…`);
       await updatePlanStep(id, "scaffold", "in_progress");
       await updatePlanStep(id, "implement", "in_progress");
-      await callClaudeCode(implementPrompt, cwd, id, { model: builderModel });
+      if (jobBuilderModel) {
+        // User pick manual → không auto-fallback (respect ý chí user)
+        jLog(id, `[implement] ${jobBuilderModel} (user pick, no auto-fallback)`);
+        await callClaudeCode(implementPrompt, cwd, id, { model: jobBuilderModel });
+      } else {
+        await runAgenticWithFallback("implement", complexity, implementPrompt, cwd, id);
+      }
       await updatePlanStep(id, "scaffold", "done");
       await updatePlanStep(id, "implement", "done");
       await updatePlanStep(id, "github", "done");
@@ -467,8 +565,16 @@ KHÔNG hỏi user — autonomous.`;
       jLog(id, `[verify] OK — Dockerfile + compose + ship.sh đủ`, "summary");
     } catch (e: any) {
       const errMsg = String(e?.message ?? e);
-      // Đọc thêm stderr recent của Claude từ log job để catch "session limit" message
-      // (nhiều khi lỗi in ra assistant text chứ không phải throw string).
+      // ALL_COOLDOWN từ router: requeue với earliest reset.
+      if (e?.code === "ALL_COOLDOWN") {
+        const resetAt = e.earliestReset;
+        const waitMin = Math.ceil((new Date(resetAt).getTime() - Date.now()) / 60000);
+        jLog(id, `[implement] ALL AGENTIC COOLDOWN: retry sau ${waitMin} phút (${resetAt})`, "error");
+        await updatePlanStep(id, "implement", "pending", `all-model cooldown until ${resetAt}`);
+        await db.requeueWithRetry(id, resetAt, `ALL_COOLDOWN: reset ${resetAt}`);
+        return;
+      }
+      // Rate-limit từ single-model call (path user pick manual) — cũng scan log.
       const recent = await db.getLogs(id, 0, 500).catch(() => [] as any[]);
       const combined = errMsg + "\n" + recent.slice(-40).map((l: any) => l.line ?? "").join("\n");
       const resetAt = parseRateLimitReset(combined);
@@ -487,9 +593,8 @@ KHÔNG hỏi user — autonomous.`;
 
     const skillTools = "Bash,Edit,Write,Read,Glob,Grep,Skill,Task";
 
-    // ─── SESSION B: REVIEW (Haiku) — gstack /review ───
+    // ─── SESSION B: REVIEW — same complexity class, auto-fallback ───
     try {
-      jLog(id, `[review] ${CONFIG.modelReviewer} — gstack /review…`);
       await updatePlanStep(id, "review", "in_progress");
       const reviewPrompt = `cwd = ${cwd}. Codebase vừa qua Implement session.
 
@@ -501,16 +606,15 @@ Load skill /review từ gstack (invoke slash command). Đọc kỹ codebase, tì
 Auto-apply fixes qua Edit/Write. Nếu sạch, không fix.
 \`git add -A && git commit -m "review: <summary>"\` nếu có fix (không cần push, session sau push).
 KHÔNG hỏi user.`;
-      await callClaudeCode(reviewPrompt, cwd, id, { model: CONFIG.modelReviewer, allowedTools: skillTools });
+      await runAgenticWithFallback("review", complexity, reviewPrompt, cwd, id, { allowedTools: skillTools });
       await updatePlanStep(id, "review", "done");
     } catch (e: any) {
       jLog(id, `[review] FAILED (không dừng build): ${e?.message ?? e}`, "error");
       await updatePlanStep(id, "review", "failed", String(e?.message ?? e));
     }
 
-    // ─── SESSION C: CSO (Sonnet) — gstack /cso security audit ───
+    // ─── SESSION C: CSO — same complexity class, auto-fallback ───
     try {
-      jLog(id, `[cso] ${CONFIG.modelCso} — gstack /cso security audit…`);
       await updatePlanStep(id, "cso", "in_progress");
       const csoPrompt = `cwd = ${cwd}. Codebase đã qua Review.
 
@@ -520,16 +624,15 @@ Load skill /cso từ gstack. Security audit toàn diện, phân loại HIGH/MEDI
 
 \`git add -A && git commit -m "cso: <summary>" && git push origin main\` nếu có commit.
 KHÔNG hỏi user.`;
-      await callClaudeCode(csoPrompt, cwd, id, { model: CONFIG.modelCso, allowedTools: skillTools });
+      await runAgenticWithFallback("cso", complexity, csoPrompt, cwd, id, { allowedTools: skillTools });
       await updatePlanStep(id, "cso", "done");
     } catch (e: any) {
       jLog(id, `[cso] FAILED (không dừng build): ${e?.message ?? e}`, "error");
       await updatePlanStep(id, "cso", "failed", String(e?.message ?? e));
     }
 
-    // ─── SESSION D: QA (Haiku) — gstack /qa smoke test ───
+    // ─── SESSION D: QA — same complexity class, auto-fallback ───
     try {
-      jLog(id, `[qa] ${CONFIG.modelQa} — gstack /qa smoke test…`);
       await updatePlanStep(id, "qa", "in_progress");
       const qaPrompt = `cwd = ${cwd}. Codebase đã qua Implement/Review/CSO.
 
@@ -545,7 +648,7 @@ Load skill /qa từ gstack. Smoke test:
 5. \`rm docker-compose.override.yml\` (KHÔNG commit file này).
 
 Nếu container không lên trong 30s → log stderr và exit non-zero. KHÔNG hỏi user.`;
-      await callClaudeCode(qaPrompt, cwd, id, { model: CONFIG.modelQa, allowedTools: skillTools });
+      await runAgenticWithFallback("qa", complexity, qaPrompt, cwd, id, { allowedTools: skillTools });
       await updatePlanStep(id, "qa", "done");
     } catch (e: any) {
       jLog(id, `[qa] FAILED (không dừng build): ${e?.message ?? e}`, "error");
@@ -923,6 +1026,21 @@ function startServer() {
       if (path === "/api/builder-choices") {
         return Response.json({ choices: BUILDER_CHOICES, default: "sonnet" });
       }
+      // Model registry state — dashboard hiển thị cooldown.
+      if (path === "/api/models") {
+        await registry.refreshCooldowns();
+        const cds = registry.getCooldowns();
+        const models = Object.values(registry.MODELS).map(m => ({
+          model: m.name, tier: m.tier,
+          cooldown_until: cds[m.name] ?? null,
+          available: !cds[m.name] || cds[m.name] <= new Date().toISOString(),
+        }));
+        return Response.json({
+          models,
+          agentic_priority: registry.AGENTIC_PRIORITY,
+          text_priority: registry.TEXT_PRIORITY,
+        });
+      }
       // Snapshot trạng thái hệ thống — dashboard hiển thị 1 dòng tóm tắt.
       if (path === "/api/status") {
         const jobs = await db.listJobs(500);
@@ -959,12 +1077,20 @@ function startServer() {
         const nextSlotAt = (startedInWindow >= CONFIG.dailyBuildLimit && oldestInWindow)
           ? new Date(new Date(oldestInWindow).getTime() + CONFIG.buildWindowHours * 3600 * 1000).toISOString()
           : null;
+        // Model cooldown snapshot
+        await registry.refreshCooldowns();
+        const cds = registry.getCooldowns();
+        const cooldownCount = Object.keys(cds).filter(m => cds[m] > new Date().toISOString()).length;
+        const soonestCooldownReset = Object.values(cds).filter(v => v > new Date().toISOString()).sort()[0] ?? null;
+
         return Response.json({
           startedInWindow, dailyLimit: CONFIG.dailyBuildLimit, buildWindowHours: CONFIG.buildWindowHours,
           counts, running,
           nextBatchAt: next.toISOString(),
-          nextSlotAt,             // khi nào 1 slot build mới mở (do rolling window)
+          nextSlotAt,
           soonestRetryAt: soonestRetry,
+          modelCooldowns: cooldownCount,          // số model đang cooling down
+          soonestModelReset: soonestCooldownReset, // ISO ts reset sớm nhất
           morningAt: CONFIG.morningAt,
           pollIntervalMin: CONFIG.pollIntervalMin,
         });

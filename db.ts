@@ -64,6 +64,7 @@ export type PoolItem = {
 };
 
 export type LogEntry = { id: number; job_id: string; ts: string; level: string; line: string };
+export type ModelCooldown = { model: string; cooldown_until: string; reason: string | null; updated_at: string };
 
 // P1 — projects + issues
 export type Project = {
@@ -99,6 +100,10 @@ interface Backend {
   setPlan(id: string, plan: any): Promise<void>;
   setBuilderModel(id: string, model: string): Promise<void>;
   requeueWithRetry(id: string, retryAfter: string, note: string): Promise<void>;   // reset status → approved, set retry_after
+  // model cooldowns
+  listCooldowns(): Promise<ModelCooldown[]>;
+  setModelCooldown(model: string, cooldownUntil: string, reason: string): Promise<void>;
+  clearModelCooldown(model: string): Promise<void>;
   countStartedToday(): Promise<number>;                        // legacy calendar-day gate
   countStartedRecent(hours: number): Promise<number>;          // rolling window (24h default)
   oldestStartedInWindow(hours: number): Promise<string | null>; // ISO ts của build cũ nhất trong window (để compute next slot)
@@ -158,6 +163,19 @@ function pgBackend(url: string): Backend {
     async requeueWithRetry(id, retryAfter, note) {
       await sql`UPDATE jobs SET status = 'approved', started_at = NULL,
         retry_after = ${retryAfter}, error_detail = ${note} WHERE id = ${id}`;
+    },
+    async listCooldowns() {
+      return (await sql`SELECT model, cooldown_until, reason, updated_at FROM model_cooldowns
+        WHERE cooldown_until > ${now()}`) as any;
+    },
+    async setModelCooldown(model, cooldownUntil, reason) {
+      await sql`INSERT INTO model_cooldowns (model, cooldown_until, reason, updated_at)
+        VALUES (${model}, ${cooldownUntil}, ${reason}, ${now()})
+        ON CONFLICT (model) DO UPDATE SET cooldown_until = EXCLUDED.cooldown_until,
+          reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at`;
+    },
+    async clearModelCooldown(model) {
+      await sql`DELETE FROM model_cooldowns WHERE model = ${model}`;
     },
     async countStartedToday() {
       const r = await sql`SELECT count(*)::int AS n FROM jobs WHERE started_at IS NOT NULL AND left(started_at, 10) = ${today()}`;
@@ -299,6 +317,9 @@ function sqliteBackend(): Backend {
       db.run(`UPDATE jobs SET status='approved', started_at=NULL, retry_after=?, error_detail=? WHERE id=?`,
         [retryAfter, note, id]);
     },
+    async listCooldowns() { return []; },
+    async setModelCooldown() {},
+    async clearModelCooldown() {},
     async countStartedToday() {
       const r = db.query(`SELECT count(*) AS n FROM jobs WHERE started_at IS NOT NULL AND substr(started_at,1,10) = ?`).get(today()) as any;
       return r.n;
@@ -380,6 +401,9 @@ export const setCeoReview = (id: string, rating: number, critique: string) => ba
 export const setPlan = (id: string, plan: any) => backend.setPlan(id, plan);
 export const setBuilderModel = (id: string, model: string) => backend.setBuilderModel(id, model);
 export const requeueWithRetry = (id: string, retryAfter: string, note: string) => backend.requeueWithRetry(id, retryAfter, note);
+export const listCooldowns = () => backend.listCooldowns();
+export const setModelCooldown = (m: string, until: string, reason: string) => backend.setModelCooldown(m, until, reason);
+export const clearModelCooldown = (m: string) => backend.clearModelCooldown(m);
 export const countStartedToday = () => backend.countStartedToday();
 export const countStartedRecent = (hours: number) => backend.countStartedRecent(hours);
 export const oldestStartedInWindow = (hours: number) => backend.oldestStartedInWindow(hours);

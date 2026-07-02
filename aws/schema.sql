@@ -81,3 +81,9 @@ CREATE TABLE IF NOT EXISTS job_logs (
   line   TEXT
 );
 CREATE INDEX IF NOT EXISTS job_logs_job_idx ON job_logs (job_id, id);
+
+-- model_cooldowns: per-model rate-limit tracking, survive worker restart.
+CREATE TABLE IF NOT EXISTS model_cooldowns (
+  model TEXT PRIMARY KEY, cooldown_until TEXT NOT NULL, reason TEXT, updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS model_cooldowns_until_idx ON model_cooldowns (cooldown_until);

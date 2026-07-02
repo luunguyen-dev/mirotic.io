@@ -11,6 +11,7 @@
  */
 
 import { callLLM, isClaude, isGemini, isGpt } from "./llm";
+import * as registry from "./model-registry";
 
 const env = (k: string, d = "") => process.env[k] ?? d;
 const bool = (k: string, d = false) => (process.env[k] ?? String(d)) === "true";
@@ -150,14 +151,38 @@ function inferType(c: Candidate): ProjectType {
   return "web-frontend";
 }
 
-// Wrapper mini: route prompt qua model theo prefix. Gemini flash → thinkingBudget=-1 (High/dynamic)
-// để có reasoning depth cho synthesis; Pro/Opus không cần vì mặc định đã reasoning tốt.
-const callLLMForGather = (prompt: string, opts: { num_predict?: number } = {}) =>
-  callLLM(CFG.gathererModel, prompt, {
-    num_predict: opts.num_predict,
-    timeoutMs: 180_000,
-    thinkingBudget: /gemini-.*flash/i.test(CFG.gathererModel) ? -1 : undefined,
-  });
+// Prototyper synthesis routed qua text-tier registry, role='gatherer', auto-fallback.
+// Gemini flash cần thinkingBudget=-1 (High/dynamic) cho creativity — inject nếu model là flash.
+const callLLMForGather = async (prompt: string, opts: { num_predict?: number } = {}): Promise<string> => {
+  const tried: string[] = [];
+  for (let attempt = 0; attempt < 4; attempt++) {
+    let model: string;
+    try { model = await registry.pickModel("text", "gatherer"); }
+    catch (e: any) {
+      throw new Error(`Gatherer: all text models cooling down; earliest reset ${e.earliestReset}`);
+    }
+    if (tried.includes(model)) throw new Error(`Gatherer: router exhausted (tried ${tried.join(", ")})`);
+    tried.push(model);
+    try {
+      const out = await callLLM(model, prompt, {
+        num_predict: opts.num_predict, timeoutMs: 180_000,
+        thinkingBudget: /gemini-.*flash/i.test(model) ? -1 : undefined,
+      });
+      log(`   ✓ Gatherer via ${model}`);
+      return out;
+    } catch (e: any) {
+      log(`   ✗ Gatherer ${model}: ${e?.message?.slice(0, 100) ?? e}, thử fallback`);
+      const errMsg = String(e?.message ?? e);
+      // Nếu là rate-limit signal → mark cooldown (parseRateLimitReset không import ở đây, dùng regex đơn giản)
+      const m = errMsg.match(/reset(?:s| at)?\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+      if (m || /session limit|usage limit|429|rate.?limit/i.test(errMsg)) {
+        // Đơn giản: đánh dấu cooldown 1h
+        await registry.markCooldown(model, new Date(Date.now() + 3600_000).toISOString(), "gatherer hit limit");
+      }
+    }
+  }
+  throw new Error(`Gatherer: exhausted after ${tried.join(", ")}`);
+};
 
 function extractJson(s: string): any {
   const a = s.indexOf("{");

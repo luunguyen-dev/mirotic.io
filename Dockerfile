@@ -12,7 +12,7 @@ RUN apt-get update \
 RUN npm install -g bun @anthropic-ai/claude-code
 
 WORKDIR /app
-COPY mirotic.ts prototyper.ts db.ts llm.ts inject-idea.ts dashboard.html projects.html ./
+COPY mirotic.ts prototyper.ts db.ts llm.ts model-registry.ts inject-idea.ts dashboard.html projects.html ./
 
 ENV NODE_ENV=production \
     DATA_DIR=/app/data
