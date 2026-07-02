@@ -13,7 +13,7 @@ import * as registry from "../llm/registry";
 import { promoteJobToProject } from "../projects";
 import {
   sign, verify, jobSigns,
-  ACTIONS, PROMOTE_ACTION, RETRY_ACTION, BUILDER_CHOICES,
+  ACTIONS, PROMOTE_ACTION, RETRY_ACTION, BUILDER_CHOICES, BUILDER_DEFAULT,
 } from "./hmac";
 
 // Simple HTML response helper for HMAC action confirmation pages.
@@ -64,7 +64,7 @@ export async function handleFetch(req: Request): Promise<Response> {
   }
   if (path === "/api/pool") return Response.json(await db.listPool(100));
   if (path === "/api/builder-choices") {
-    return Response.json({ choices: BUILDER_CHOICES, default: "sonnet" });
+    return Response.json({ choices: BUILDER_CHOICES, default: BUILDER_DEFAULT });
   }
   // Model registry state — dashboard hiển thị cooldown.
   if (path === "/api/models") {
@@ -187,13 +187,15 @@ export async function handleFetch(req: Request): Promise<Response> {
     if (!verify(id, action, url.searchParams.get("t") ?? "")) return page("❌ Token sai", 403);
     if (!(await db.getJob(id))) return page("❌ Không thấy job", 404);
     // Approve: cho phép user pick builder model qua ?model=<key> (whitelist BUILDER_CHOICES).
+    // "auto" (sentinel) = không set builder_model → registry tự route theo complexity + cooldown.
     if (action === "approve") {
       const modelKey = url.searchParams.get("model");
-      if (modelKey) {
+      if (modelKey && modelKey !== "auto") {
         const modelName = BUILDER_CHOICES[modelKey];
         if (!modelName) return page(`❌ Unknown builder model: ${modelKey}. Valid: ${Object.keys(BUILDER_CHOICES).join(", ")}`, 400);
         await db.setBuilderModel(id, modelName);
       }
+      // modelKey === "auto" → skip setBuilderModel; runAgenticWithFallback dùng registry.
     }
     await db.setStatus(id, ACTIONS[action]);
     return page(`✅ <code>${id}</code> → <b>${ACTIONS[action]}</b>. <a href="/">← dashboard</a>`);

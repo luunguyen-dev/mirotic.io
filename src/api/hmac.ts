@@ -21,10 +21,13 @@ export const RETRY_ACTION = "retry";
 
 // User có thể pick model builder qua dropdown khi Approve.
 // Key = short name; value = model name gửi CLI.
+// Key "auto" là sentinel — không set builder_model, để registry tự route theo complexity + cooldown.
 export const BUILDER_CHOICES: Record<string, string> = {
+  auto: "",   // sentinel: hệ thống quyết định (complexity-adaptive + auto-fallback)
   sonnet: "claude-sonnet-5",
   opus: "claude-opus-4-8",
 };
+export const BUILDER_DEFAULT = "auto";
 
 // Compute HMAC signs bundle cho tất cả action của 1 job.
 export function jobSigns(id: string) {

@@ -287,8 +287,13 @@ async function openDrawer(id) {
   let builderPicker = "";
   if (j.status === "proposed") {
     // Model picker cho Builder — Approve URL sẽ include ?model=<key>.
-    const opts = Object.keys(bc.choices || {}).map(k =>
-      `<option value="${escapeHtml(k)}" ${k === bc.default ? "selected" : ""}>${escapeHtml(k)} — ${escapeHtml(bc.choices[k])}</option>`).join("");
+    // "auto" (mặc định) = registry chọn theo complexity + cooldown, auto-fallback nếu hit limit.
+    const opts = Object.keys(bc.choices || {}).map(k => {
+      const label = k === "auto"
+        ? "auto — hệ thống quyết định (complexity + fallback)"
+        : `${k} — ${bc.choices[k]}`;
+      return `<option value="${escapeHtml(k)}" ${k === bc.default ? "selected" : ""}>${escapeHtml(label)}</option>`;
+    }).join("");
     builderPicker = `<div class="field"><label>Builder model</label>
       <select id="builder-model-select" onchange="selectedBuilderKey=this.value" style="width:100%;padding:6px;border-radius:5px;background:#1a1a1e;color:#ddd;border:1px solid #2a2a2e;font:inherit">${opts}</select>
     </div>`;
@@ -306,7 +311,10 @@ async function openDrawer(id) {
     const label = waitingRetry ? "Retry now (skip wait)" : "Retry";
     actions.push(`<a onclick="doAction('${id}','retry','${j.signs.retry}')" style="background:#2a3a4a;border-color:#3a5a7a;color:#7bd0e0">↻ ${label}</a>`);
   }
-  const builderInfo = j.builder_model ? `<div class="sub" style="margin-top:-8px">Builder: <code>${escapeHtml(j.builder_model)}</code></div>` : "";
+  // builder_model = null → auto mode (registry chọn); != null → user pick manual.
+  const builderInfo = (j.status !== "proposed")
+    ? `<div class="sub" style="margin-top:-8px">Builder: <code>${escapeHtml(j.builder_model || "auto")}</code></div>`
+    : "";
   const titleEn = j.idea?.title_en || j.idea?.title || j.id;
   const titleVi = j.idea?.title_vi || j.idea?.title || "";
   const pitchEn = j.idea?.pitch_en || j.idea?.pitch || "";
@@ -416,7 +424,7 @@ async function doPromote(id, token) {
 }
 
 async function doApprove(id, token) {
-  const modelKey = selectedBuilderKey || (builderChoices?.default ?? "sonnet");
+  const modelKey = selectedBuilderKey || (builderChoices?.default ?? "auto");
   const r = await fetch(`/approve/${id}?t=${token}&model=${encodeURIComponent(modelKey)}`);
   if (!r.ok) { alert(`Approve failed: HTTP ${r.status} — ${await r.text().catch(()=>"")}`); return; }
   closeDrawer();
