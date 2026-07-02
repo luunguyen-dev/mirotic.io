@@ -305,7 +305,7 @@ async function openDrawer(id) {
     // Auto row hiển thị preview model do registry đề xuất ngay bây giờ.
     const rec = j.auto_recommended;   // { model, meta: {name, version?} } | null
     const autoLabel = (baseMeta) => rec
-      ? `${renderModelLabel(baseMeta)}<span style="opacity:0.5;margin-left:6px">(${renderModelLabel(rec.meta)})</span>`
+      ? `${renderModelLabel(baseMeta)}<span style="opacity:0.5;margin-left:6px">${renderModelLabel(rec.meta)}</span>`
       : renderModelLabel(baseMeta);
 
     const items = Object.entries(bc.choices || {}).map(([key, meta]) => {
@@ -352,7 +352,7 @@ async function openDrawer(id) {
     }
     // Auto mode
     const resolved = j.builder_model_used
-      ? `<span style="opacity:0.5;margin-left:6px">(${renderModelLabel(metaOf(j.builder_model_used))})</span>`
+      ? `<span style="opacity:0.5;margin-left:6px">${renderModelLabel(metaOf(j.builder_model_used))}</span>`
       : "";
     return `<div class="sub" style="margin-top:-8px">Builder: ${renderModelLabel({ name: "Auto" })}${resolved}</div>`;
   })();
@@ -511,7 +511,7 @@ function pickBuilder(key) {
   const meta = bc?.choices?.[key] ?? { name: key };
   const rec = window._autoRecommended;
   const inner = (key === "auto" && rec)
-    ? `${renderModelLabel(meta)}<span style="opacity:0.5;margin-left:6px">(${renderModelLabel(rec.meta)})</span>`
+    ? `${renderModelLabel(meta)}<span style="opacity:0.5;margin-left:6px">${renderModelLabel(rec.meta)}</span>`
     : renderModelLabel(meta);
   document.getElementById("builder-summary").innerHTML = inner;
   // Highlight item selected + đóng picker.
