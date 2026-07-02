@@ -444,7 +444,7 @@ Nhiệm vụ:
 3. \`README.md\` — 1 dòng pitch + 2 lệnh: \`docker compose up\` và \`./ship.sh\`.
 4. Git + GitHub:
    - \`git init && git add -A && git commit -m "init"\`
-   - \`gh repo create luunguyen-dev/daily-${idea.slug} --private --source=. --push\`
+   - \`gh repo create luunguyen-dev/mirotic-${idea.slug} --private --source=. --push\`
 
 KHÔNG hỏi user — autonomous.`;
       const builderModel = job.builder_model || CONFIG.modelBuilder;
@@ -555,7 +555,7 @@ Nếu container không lên trong 30s → log stderr và exit non-zero. KHÔNG h
     const steps: [string, string][] = [
       ["scaffold", plan.stack], ["implement", "core feature ✓"], ["/review", "fix 3 ✓"],
       ["/cso", "1 finding low"], ["/qa", `${idea.type === "cli" ? "CLI + 6 unit" : "5 browser test + 2 ảnh"} ✓`],
-      ["repo", `tạo private github.com/${CONFIG.githubOwner}/daily-${idea.slug} ✓`],
+      ["repo", `tạo private github.com/${CONFIG.githubOwner}/mirotic-${idea.slug} ✓`],
       ["docker", `docker compose up trên Mac → http://localhost:${port} (đang chạy để test) ✓`],
       ["ci/cd", "GitHub Actions → AWS đã cấu hình (chờ Deploy) ✓"],
     ];
@@ -597,7 +597,7 @@ Nếu container không lên trong 30s → log stderr và exit non-zero. KHÔNG h
   }
 
   const result: Result = {
-    repoUrl: repoUrl || `https://github.com/${CONFIG.githubOwner}/daily-${idea.slug}`,
+    repoUrl: repoUrl || `https://github.com/${CONFIG.githubOwner}/mirotic-${idea.slug}`,
     branch: "main",
     localUrl: `http://localhost:${localPort}`,
   };
