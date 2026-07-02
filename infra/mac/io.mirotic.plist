@@ -10,7 +10,7 @@
   <array>
     <string>/opt/homebrew/bin/bun</string>
     <string>run</string>
-    <string>mirotic.ts</string>
+    <string>src/index.ts</string>
     <string>worker</string>
   </array>
 

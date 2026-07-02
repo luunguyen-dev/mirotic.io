@@ -8,7 +8,7 @@
 import { SQL } from "bun";
 import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
-import type { Idea } from "./prototyper";
+import type { Idea } from "../types";
 
 export type JobStatus =
   | "proposed"          // Prototyper vừa gom

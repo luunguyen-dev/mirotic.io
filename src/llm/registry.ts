@@ -7,7 +7,7 @@
  *   - Cooldown persist trong DB (model_cooldowns) → survive worker restart.
  */
 
-import * as db from "./db";
+import * as db from "../db";
 
 export type Tier = "agentic" | "text";
 export type ComplexityClass = "complex" | "medium" | "simple";

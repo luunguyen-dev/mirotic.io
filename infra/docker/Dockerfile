@@ -12,11 +12,14 @@ RUN apt-get update \
 RUN npm install -g bun @anthropic-ai/claude-code
 
 WORKDIR /app
-COPY mirotic.ts prototyper.ts db.ts llm.ts model-registry.ts inject-idea.ts dashboard.html projects.html ./
+# src/ = orchestrator TS code, web/ = static HTML dashboards, templates/ = ship.sh.tmpl.
+COPY src ./src
+COPY web ./web
+COPY templates ./templates
 
 ENV NODE_ENV=production \
     DATA_DIR=/app/data
 EXPOSE 4321
 
 # Mặc định: daemon = server approve/reject + tự lên lịch chạy morning mỗi ngày (thay launchd).
-CMD ["bun", "run", "mirotic.ts", "daemon"]
+CMD ["bun", "run", "src/index.ts", "daemon"]

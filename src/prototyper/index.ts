@@ -10,8 +10,10 @@
  * Hoặc được mirotic.ts import: collectIdea() trả về 1 Idea cho pipeline.
  */
 
-import { callLLM, isClaude, isGemini, isGpt } from "./llm";
-import * as registry from "./model-registry";
+import { callLLM, isClaude, isGemini, isGpt } from "../llm";
+import * as registry from "../llm/registry";
+import type { Idea, ProjectType, ScoredIdea } from "../types";
+export type { Idea, ProjectType, ScoredIdea } from "../types";
 
 const env = (k: string, d = "") => process.env[k] ?? d;
 const bool = (k: string, d = false) => (process.env[k] ?? String(d)) === "true";
@@ -29,20 +31,6 @@ const CFG = {
 // Prototyper dùng LLM khi: Claude / Gemini / GPT có sẵn auth, HOẶC Ollama + USE_REAL_OLLAMA=true.
 const useLLMEnrich = isClaude(CFG.gathererModel) || isGemini(CFG.gathererModel) || isGpt(CFG.gathererModel) || CFG.useRealOllama;
 
-export type ProjectType = "web-frontend" | "full-stack" | "cli" | "browser-extension";
-export type Idea = {
-  title: string; slug: string; type: ProjectType;
-  pitch: string; why: string; source: string;
-  // Song ngữ (title + pitch: Ollama dịch; why: Prototyper heuristic 2 ngôn ngữ).
-  title_vi?: string; pitch_vi?: string; why_vi?: string;
-  title_en?: string; pitch_en?: string; why_en?: string;
-  // Brief chi tiết (Ollama enrich trong batch call).
-  features?: string[]; features_vi?: string[]; features_en?: string[];
-  target_user?: string; target_user_vi?: string; target_user_en?: string;
-  demo_hours?: number;                    // ước lượng giờ build demo (2..24)
-  why_now?: string; why_now_vi?: string; why_now_en?: string;
-  risk?: string; risk_vi?: string; risk_en?: string;
-};
 type Candidate = { title: string; summary: string; source: string; url?: string };
 
 const log = (s = "") => console.log(s);
@@ -205,8 +193,6 @@ const SEED: Idea = {
   pitch_en: "Snapshot all open tabs into 1 shareable list, stored local.",
   why_en: "Small, immediately usable, no backend — fallback when all sources are offline.",
 };
-
-export type ScoredIdea = Idea & { score: number; url?: string };
 
 /**
  * Batch collect: gom nhiều ý tưởng + score (Ollama nếu bật, không thì heuristic).

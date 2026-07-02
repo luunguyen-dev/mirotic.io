@@ -5,7 +5,7 @@
 # Yêu cầu: Caddy đã cài (chạy setup-aws-caddy.sh trước), DNS mirotic.luunguyen.dev → AWS_HOST.
 set -euo pipefail
 cd "$(dirname "$0")"
-ROOT="$(cd .. && pwd)"
+ROOT="$(cd ../.. && pwd)"    # setup-dashboard.sh is at infra/aws/ → ROOT is 2 levels up
 
 AWS_HOST="${AWS_HOST:?cần AWS_HOST}"
 SSH_KEY="${SSH_KEY:?cần SSH_KEY}"; SSH_KEY="${SSH_KEY/#\~/$HOME}"
@@ -27,10 +27,12 @@ echo "→ [2/4] rsync source → /opt/mirotic-dashboard/"
 "${SSH_CMD[@]}" "sudo mkdir -p /opt/mirotic-dashboard && sudo chown $SSH_USER:$SSH_USER /opt/mirotic-dashboard"
 rsync -az --delete \
   --exclude='.git' --exclude='data' --exclude='node_modules' --exclude='.env' \
-  --exclude='*.pem' --exclude='templates' --exclude='aws' \
+  --exclude='*.pem' --exclude='scripts' --exclude='docs' --exclude='infra' \
   -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=accept-new" \
   "$ROOT/" "$SSH_USER@$AWS_HOST:/opt/mirotic-dashboard/"
-scp -i "$SSH_KEY" "$ROOT/aws/dashboard.compose.yml" "$SSH_USER@$AWS_HOST:/opt/mirotic-dashboard/docker-compose.yml"
+# Copy Dockerfile + compose từ infra/docker/ vào root remote
+scp -i "$SSH_KEY" "$ROOT/infra/docker/Dockerfile" "$SSH_USER@$AWS_HOST:/opt/mirotic-dashboard/Dockerfile"
+scp -i "$SSH_KEY" "$ROOT/infra/docker/dashboard.compose.yml" "$SSH_USER@$AWS_HOST:/opt/mirotic-dashboard/docker-compose.yml"
 scp -i "$SSH_KEY" "$ENV_FILE" "$SSH_USER@$AWS_HOST:/opt/mirotic-dashboard/.env.dashboard"
 rm -f "$ENV_FILE"
 

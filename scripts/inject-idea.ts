@@ -3,8 +3,8 @@
  * Chạy: bun run inject-idea.ts
  */
 import { SQL } from "bun";
-import * as db from "./db";
-import type { Idea } from "./prototyper";
+import * as db from "../src/db";
+import type { Idea } from "../src/types";
 
 const idea: Idea = {
   title: "Pi to 1000 digits",

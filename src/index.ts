@@ -16,7 +16,7 @@
 import { createHmac } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { collectIdea, batchCollect } from "./prototyper";
-import type { Idea, ProjectType, ScoredIdea } from "./prototyper";
+import type { Idea, ProjectType, ScoredIdea } from "./types";
 import * as db from "./db";
 import type { JobStatus } from "./db";
 
@@ -89,7 +89,7 @@ async function verifyBuildArtifacts(cwd: string): Promise<string[]> {
 }
 
 import { callLLM, isGpt } from "./llm";
-import * as registry from "./model-registry";
+import * as registry from "./llm/registry";
 
 /**
  * Parse rate-limit error từ Claude output.
@@ -1126,11 +1126,11 @@ function startServer() {
         return Response.redirect("/ideas", 302);
       }
       if (path === "/ideas" || path === "/ideas/") {
-        const html = await Bun.file(`${import.meta.dir}/dashboard.html`).text().catch(() => null);
+        const html = await Bun.file(`${import.meta.dir}/../web/ideas.html`).text().catch(() => null);
         if (html) return new Response(html, { headers: { "Content-Type": "text/html" } });
       }
       if (path === "/projects" || path.startsWith("/projects/")) {
-        const html = await Bun.file(`${import.meta.dir}/projects.html`).text().catch(() => null);
+        const html = await Bun.file(`${import.meta.dir}/../web/projects.html`).text().catch(() => null);
         if (html) return new Response(html, { headers: { "Content-Type": "text/html" } });
       }
 

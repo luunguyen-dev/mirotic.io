@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # install-launchd.sh — Đăng ký mirotic worker với launchd (Mac).
-# Chạy:  ./mac/install-launchd.sh         # cài + start
-#        ./mac/install-launchd.sh stop    # dừng
-#        ./mac/install-launchd.sh remove  # gỡ hẳn
-#        ./mac/install-launchd.sh status  # xem trạng thái
+# Chạy:  ./infra/mac/install-launchd.sh         # cài + start
+#        ./infra/mac/install-launchd.sh stop    # dừng
+#        ./infra/mac/install-launchd.sh remove  # gỡ hẳn
+#        ./infra/mac/install-launchd.sh status  # xem trạng thái
 set -euo pipefail
 
 LABEL="io.mirotic"
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PLIST_SRC="$ROOT/mac/$LABEL.plist"
+# infra/mac/install-launchd.sh → 2 levels up = project root.
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+PLIST_SRC="$ROOT/infra/mac/$LABEL.plist"
 PLIST_DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOG_DIR="$HOME/Library/Logs/mirotic"
 
@@ -26,7 +27,7 @@ case "$cmd" in
     launchctl kickstart -k "gui/$(id -u)/$LABEL"
     echo "✓ installed + started: $LABEL"
     echo "  logs: $LOG_DIR/{stdout,stderr}.log"
-    echo "  status: ./mac/install-launchd.sh status"
+    echo "  status: ./infra/mac/install-launchd.sh status"
     ;;
   stop)
     launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null && echo "✓ stopped" || echo "(not loaded)"
