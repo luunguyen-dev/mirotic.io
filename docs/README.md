@@ -1,57 +1,63 @@
-# Daily Idea → Demo system (DB-driven, web-managed)
+# Mirotic
 
-Mỗi ngày hệ thống tự gom 1 ý tưởng vào DB. Bạn **duyệt trên web** (đổi status). Poller mỗi 5' nhận ý tưởng `approved`, **thực thi tối đa 1/ngày**, cập nhật status liên tục lên DB để bạn theo dõi. Kết quả: **docker chạy local để test + repo private mới + CI/CD lên AWS**, và bạn bấm **Deploy** trên web khi ưng.
+Idea → demo → deploy pipeline. Mỗi sáng Prototyper gom 10 idea từ Hacker News / GitHub Trending / Product Hunt / backlog, CEO chấm 1-5⭐, top-3 vào cột **Proposed**. Bạn Approve trên dashboard, Builder chạy 4 gstack sessions (`implement /review /cso /qa`) qua Claude Code + Codex, output demo-ready docker container + repo GitHub private. Deploy → `<slug>.luunguyen.dev` live qua Caddy.
 
-## Luồng (state machine)
+**Live**: <https://mirotic.luunguyen.dev/ideas> · <https://mirotic.luunguyen.dev/projects>
+
+## State machine
+
 ```
-Prototyper ──> proposed ──(bạn duyệt trên web)──> approved
-                                                     │ poller 5' (tối đa 1/ngày)
-                                                     ▼
-                                                  building ──> demo-ready
-                                                                 │  • docker chạy trên Mac (test ở nhà)
-                                                                 │  • repo private mới trên GitHub
-                                                                 │  • CI/CD → AWS đã sẵn
-                                   (bạn test → bấm Deploy trên web)
-                                                                 ▼
-                                          deploy-requested ──> deploying ──> deployed
+Prototyper 07:00 ─► proposed ─(bạn Approve)─► approved ─(poller 5', rolling 24h gate)─► building
+                                                                                          │
+                                                                                          ▼
+                                                                                     demo-ready
+                                                                                     • docker chạy trên Mac (test)
+                                                                                     • repo private mới trên GitHub
+                                                                                          │
+                                                                        (bạn Deploy trên web)
+                                                                                          ▼
+                                                        deploy-requested ─► deploying ─► deployed
+                                                                                          │
+                                                                                          ▼
+                                                                       https://<slug>.luunguyen.dev
 ```
-Web ↔ orchestrator **decoupled hoàn toàn qua DB**: web chỉ đọc/ghi Postgres; orchestrator poll DB tìm việc (`approved`→build, `deploy-requested`→deploy).
 
-## Thành phần
-| Module | Vai | Trạng thái |
-|---|---|---|
-| `prototyper.ts` | Thu thập ý tưởng (HN + GitHub Trending + Product Hunt + backlog) | ✅ chạy thật (HN/GitHub không cần key) |
-| `db.ts` | Kho ý tưởng dùng chung — **Postgres** (có `DATABASE_URL`) hoặc **SQLite** (dev) | ✅ tested cả 2 |
-| `mirotic.ts` | Orchestrator: sinh ý tưởng + **poller 5'** + gate 1/ngày + executor + deploy | ✅ logic tested (execution mock) |
-| `aws/setup-aws-db.sh` | Dựng Postgres trên EC2 + mở network + schema | ✅ syntax-checked |
-| **Web quản lý ý tưởng** | UI duyệt/đổi status/nút Deploy (đọc/ghi Postgres) | ⏳ chưa build |
-| Executor thật (Claude Code + gstack) | Build + tạo repo private + CI/CD | ⏳ mock (bật `USE_REAL_CLAUDE`) |
+demo-ready cũng có thể **Promote → Project** để chuyển sang long-lived project với issue backlog (LLM sinh 5-8 issues khởi tạo).
 
 ## Chạy
+
+Xem `SETUP.md` cho từng biến env + cách lấy. Sau khi có `.env`:
+
 ```bash
-cp .env.example .env          # sửa HMAC_SECRET; DATABASE_URL trống = SQLite dev
-docker compose up -d --build  # daemon: dashboard + sinh ý tưởng + poller 5'
+bun install                       # nếu cần (Bun-only, không có node_modules thực)
+bun run src/index.ts <mode>
 ```
-Hoặc Bun trực tiếp: `DATA_DIR=./data bun run mirotic.ts <mode>`
 
-| Mode | Làm gì |
-|---|---|
-| `daemon` | server + sinh ý tưởng hằng ngày + poller 5' (mặc định) |
-| `demo` | trọn luồng trong bộ nhớ, mock (~6s) — xem proposed→…→deployed |
-| `generate` | sinh 1 ý tưởng `proposed` rồi thoát |
-| `poll` | chạy 1 chu kỳ poller rồi thoát |
-| `serve` | chỉ dashboard tạm + action endpoints |
+| Mode | Làm gì | Dùng khi nào |
+|---|---|---|
+| `daemon` | server + morning batch + poller interval | Docker container (dashboard EC2) |
+| `serve` | chỉ dashboard `:4321` | dashboard EC2 nếu tách worker |
+| `worker` | morning batch + poller, không serve | launchd Mac |
+| `poll` | 1 chu kỳ poller rồi thoát | dev/debug |
+| `generate` | sinh 1 idea đơn rồi thoát | dev |
+| `batch` | sinh 1 batch (10 candidates + CEO) rồi thoát | dev |
+| `demo` | full flow trong bộ nhớ, mock (~6s) | dev quick check |
 
-Xem riêng Prototyper gom gì: `bun run prototyper.ts`
+Xem Prototyper gom gì (không insert DB): `bun run src/prototyper/index.ts`
 
 ## Database
-- **Postgres** khi đặt `DATABASE_URL` (web + orchestrator dùng chung). Dựng nhanh: `cd aws && INSTANCE_ID=i-… SSH_KEY=~/.ssh/key.pem ./setup-aws-db.sh`.
-- **SQLite** khi không có `DATABASE_URL` — file `DATA_DIR/mirotic.db`, cho dev không cần Postgres.
-- Cùng một bảng `jobs` (xem `aws/schema.sql`) → web đọc/ghi trực tiếp.
 
-## Còn mock / cần làm tiếp
-- **Web quản lý ý tưởng**: list/duyệt/đổi status + nút Deploy (chỉ cần CRUD trên bảng `jobs`).
-- **Executor thật** (`USE_REAL_CLAUDE=true`): `claude -p` chạy gstack, **tạo repo private** (cần GitHub token), **docker up trên Mac**, **CI/CD → AWS**. Tìm `PLUG REAL` / `callClaudeCode`.
-- Dashboard hiện tại (`/`) là UI tạm để điều khiển trước khi web app ra đời.
+- **Postgres** khi có `DATABASE_URL` — worker + dashboard cùng đọc/ghi. Dựng: `AWS_HOST=… SSH_KEY=… ./infra/aws/setup-db.sh`.
+- **SQLite** khi `DATABASE_URL` trống — file `data/mirotic.db`, cho dev không cần Postgres.
+- Schema xem `infra/aws/schema.sql` (Postgres). Tables: `jobs`, `idea_pool`, `job_logs`, `projects`, `milestones`, `issues`, `model_cooldowns`.
 
-Kiến trúc tổng thể + lộ trình: xem `../daily-idea-to-pr-system-plan.md`.
+## Deploy
+
+```bash
+./infra/aws/setup-caddy.sh              # 1 lần trên EC2
+./infra/aws/setup-dashboard.sh          # deploy dashboard container tại mirotic.luunguyen.dev
+./infra/mac/install-launchd.sh install  # Mac worker (io.mirotic → launchd)
+tail -f ~/Library/Logs/mirotic/stdout.log
+```
+
+Chi tiết component + data flow: [`ARCHITECTURE.md`](ARCHITECTURE.md).
