@@ -13,7 +13,7 @@
   header .meta { color: #666; font-size: 12px; }
   header button { background: #1c1c1f; color: #ddd; border: 1px solid #2a2a2e; padding: 4px 10px; border-radius: 5px; cursor: pointer; font: inherit; }
   header button:hover { background: #25252a; }
-  .board { display: grid; grid-template-columns: repeat(6, minmax(220px, 1fr)); gap: 12px; padding: 16px; height: calc(100vh - 113px); overflow-x: auto; }
+  .board { display: grid; grid-template-columns: repeat(7, minmax(200px, 1fr)); gap: 12px; padding: 16px; height: calc(100vh - 113px); overflow-x: auto; }
   .col { background: #111114; border: 1px solid #1c1c1f; border-radius: 8px; display: flex; flex-direction: column; min-height: 0; }
   .col h2 { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin: 0; padding: 10px 12px; border-bottom: 1px solid #1c1c1f; display: flex; justify-content: space-between; }
   .col h2 .count { color: #555; }
@@ -48,9 +48,10 @@
   .card.building { border-left: 3px solid #e0d47b; }
   .card.demo-ready { border-left: 3px solid #7ba8e0; }
   .card.deploy-requested { border-left: 3px solid #d67be0; }
+  .card.deploying { border-left: 3px solid #d67be0; }
   .card.deployed { border-left: 3px solid #a3d9a5; background: #1a221e; }
   .card.failed { border-left: 3px solid #e07b7b; opacity: 0.65; }
-  .card.rejected { opacity: 0.45; }
+  .card.rejected { border-left: 3px solid #666; opacity: 0.45; }
   /* Drawer detail */
   .drawer { position: fixed; right: 0; top: 0; bottom: 0; width: 480px; max-width: 100vw; background: #0e0e10; border-left: 1px solid #2a2a2e; padding: 20px; overflow-y: auto; transform: translateX(100%); transition: transform 0.15s; z-index: 10; }
   .drawer.open { transform: translateX(0); }
@@ -131,6 +132,7 @@ const COLS = [
   ["demo-ready", "Demo ready"],
   ["deploy-requested", "Deploy requested"],
   ["deployed", "Deployed"],
+  ["failed", "Failed / Rejected"],
 ];
 
 function relTime(iso) {
@@ -191,10 +193,20 @@ async function load() {
   const board = document.getElementById("board");
   board.innerHTML = "";
   for (const [key, label] of COLS) {
-    let items = jobs.filter(j => j.status === key);
+    // Board cover mọi status khả dĩ:
+    // - "failed" col nuốt cả rejected
+    // - "deploy-requested" col nuốt cả deploying (mid-ship state)
+    let items;
+    if (key === "failed") items = jobs.filter(j => j.status === "failed" || j.status === "rejected");
+    else if (key === "deploy-requested") items = jobs.filter(j => j.status === "deploy-requested" || j.status === "deploying");
+    else items = jobs.filter(j => j.status === key);
     // Sort proposed by CEO rating desc, tie-break created_at desc.
     if (key === "proposed") {
       items = items.sort((a, b) => (b.ceo_rating ?? 0) - (a.ceo_rating ?? 0) || (b.created_at > a.created_at ? 1 : -1));
+    }
+    // Failed column: sort by started_at desc (mới fail trước)
+    if (key === "failed") {
+      items = items.sort((a, b) => (b.started_at || b.created_at) > (a.started_at || a.created_at) ? 1 : -1);
     }
     const col = document.createElement("div");
     col.className = "col";
