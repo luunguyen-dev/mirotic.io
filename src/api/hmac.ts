@@ -20,12 +20,18 @@ export const PROMOTE_ACTION = "promote";
 export const RETRY_ACTION = "retry";
 
 // User có thể pick model builder qua dropdown khi Approve.
-// Key = short name; value = model name gửi CLI.
-// Key "auto" là sentinel — không set builder_model, để registry tự route theo complexity + cooldown.
+//
+// Key = model identifier gửi tới Claude CLI (`--model <key>`).
+//       Đặc biệt: "auto" là sentinel = KHÔNG set builder_model → registry
+//       tự route theo complexity + cooldown fallback.
+// Value = label hiển thị (tên chính thức + version như Anthropic công bố).
+//
+// Mở rộng: thêm entry mới ở đây, không cần đổi code route hoặc UI.
 export const BUILDER_CHOICES: Record<string, string> = {
-  auto: "",   // sentinel: hệ thống quyết định (complexity-adaptive + auto-fallback)
-  sonnet: "claude-sonnet-5",
-  opus: "claude-opus-4-8",
+  "auto":                        "Auto",
+  "claude-sonnet-5":             "Claude Sonnet 5",
+  "claude-opus-4-8":             "Claude Opus 4.8",
+  "claude-haiku-4-5-20251001":   "Claude Haiku 4.5",
 };
 export const BUILDER_DEFAULT = "auto";
 

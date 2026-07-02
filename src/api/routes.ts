@@ -187,15 +187,16 @@ export async function handleFetch(req: Request): Promise<Response> {
     if (!verify(id, action, url.searchParams.get("t") ?? "")) return page("❌ Token sai", 403);
     if (!(await db.getJob(id))) return page("❌ Không thấy job", 404);
     // Approve: cho phép user pick builder model qua ?model=<key> (whitelist BUILDER_CHOICES).
-    // "auto" (sentinel) = không set builder_model → registry tự route theo complexity + cooldown.
+    // Key GIỜ = model name trực tiếp (vd claude-sonnet-5). "auto" là sentinel = không set.
     if (action === "approve") {
       const modelKey = url.searchParams.get("model");
       if (modelKey && modelKey !== "auto") {
-        const modelName = BUILDER_CHOICES[modelKey];
-        if (!modelName) return page(`❌ Unknown builder model: ${modelKey}. Valid: ${Object.keys(BUILDER_CHOICES).join(", ")}`, 400);
-        await db.setBuilderModel(id, modelName);
+        if (!(modelKey in BUILDER_CHOICES)) {
+          return page(`❌ Unknown builder model: ${modelKey}. Valid: ${Object.keys(BUILDER_CHOICES).join(", ")}`, 400);
+        }
+        await db.setBuilderModel(id, modelKey);
       }
-      // modelKey === "auto" → skip setBuilderModel; runAgenticWithFallback dùng registry.
+      // modelKey === "auto" (hoặc không set) → skip setBuilderModel; registry tự route.
     }
     await db.setStatus(id, ACTIONS[action]);
     return page(`✅ <code>${id}</code> → <b>${ACTIONS[action]}</b>. <a href="/">← dashboard</a>`);
