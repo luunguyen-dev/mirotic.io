@@ -309,10 +309,19 @@ async function openDrawer(id) {
     const label = waitingRetry ? "Retry now (skip wait)" : "Retry";
     actions.push(`<a onclick="doAction('${id}','retry','${j.signs.retry}')" style="background:#2a3a4a;border-color:#3a5a7a;color:#7bd0e0">↻ ${label}</a>`);
   }
-  // builder_model = null → auto mode (registry chọn); != null → user pick manual.
-  const builderInfo = (j.status !== "proposed")
-    ? `<div class="sub" style="margin-top:-8px">Builder: <code>${escapeHtml(j.builder_model || "auto")}</code></div>`
-    : "";
+  // builder_model = null → auto (registry chọn). builder_model_used = model thực sự đã dùng.
+  // Auto mode: hiển thị "Auto" chính + "(Claude Sonnet 5)" dimmer bên phải khi đã resolved.
+  const builderInfo = (() => {
+    if (j.status === "proposed") return "";
+    const bc = builderChoices?.choices || {};
+    const labelOf = (mid) => bc[mid] || mid;    // fallback = raw id nếu không có trong map
+    if (j.builder_model) {
+      return `<div class="sub" style="margin-top:-8px">Builder: <code>${escapeHtml(labelOf(j.builder_model))}</code></div>`;
+    }
+    // Auto mode
+    const resolved = j.builder_model_used ? ` <span style="opacity:0.5">(${escapeHtml(labelOf(j.builder_model_used))})</span>` : "";
+    return `<div class="sub" style="margin-top:-8px">Builder: <code>Auto</code>${resolved}</div>`;
+  })();
   const titleEn = j.idea?.title_en || j.idea?.title || j.id;
   const titleVi = j.idea?.title_vi || j.idea?.title || "";
   const pitchEn = j.idea?.pitch_en || j.idea?.pitch || "";

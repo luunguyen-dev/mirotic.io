@@ -27,8 +27,9 @@ export type Job = {
   error_detail: string | null;
   ceo_rating: number | null;
   ceo_critique: string | null;  // JSON blob {en, vi}
-  builder_model: string | null; // user pick trước Approve; null = CONFIG.modelBuilder
-  retry_after: string | null;   // ISO ts; approved job bị skip đến khi qua mốc (rate-limit reset)
+  builder_model: string | null;      // user pick trước Approve; null = auto
+  builder_model_used: string | null; // model thực sự dùng (auto-resolved từ registry sau IMPLEMENT)
+  retry_after: string | null;        // ISO ts; approved job bị skip đến khi qua mốc (rate-limit reset)
 };
 
 const SCHEMA = `CREATE TABLE IF NOT EXISTS jobs (
@@ -51,6 +52,7 @@ function parse(r: any): Job {
     ceo_rating: r.ceo_rating ?? null,
     ceo_critique: r.ceo_critique ?? null,
     builder_model: r.builder_model ?? null,
+    builder_model_used: r.builder_model_used ?? null,
     retry_after: r.retry_after ?? null,
   };
 }
@@ -99,6 +101,7 @@ interface Backend {
   setCeoReview(id: string, rating: number, critique: string): Promise<void>;
   setPlan(id: string, plan: any): Promise<void>;
   setBuilderModel(id: string, model: string): Promise<void>;
+  setBuilderModelUsed(id: string, model: string): Promise<void>;
   requeueWithRetry(id: string, retryAfter: string, note: string): Promise<void>;   // reset status → approved, set retry_after
   // model cooldowns
   listCooldowns(): Promise<ModelCooldown[]>;
@@ -159,6 +162,9 @@ function pgBackend(url: string): Backend {
     },
     async setBuilderModel(id, model) {
       await sql`UPDATE jobs SET builder_model = ${model} WHERE id = ${id}`;
+    },
+    async setBuilderModelUsed(id, model) {
+      await sql`UPDATE jobs SET builder_model_used = ${model} WHERE id = ${id}`;
     },
     async requeueWithRetry(id, retryAfter, note) {
       await sql`UPDATE jobs SET status = 'approved', started_at = NULL,
@@ -312,6 +318,10 @@ function sqliteBackend(): Backend {
       try { db.run(`ALTER TABLE jobs ADD COLUMN builder_model TEXT`); } catch {}
       db.run(`UPDATE jobs SET builder_model = ? WHERE id = ?`, [model, id]);
     },
+    async setBuilderModelUsed(id, model) {
+      try { db.run(`ALTER TABLE jobs ADD COLUMN builder_model_used TEXT`); } catch {}
+      db.run(`UPDATE jobs SET builder_model_used = ? WHERE id = ?`, [model, id]);
+    },
     async requeueWithRetry(id, retryAfter, note) {
       try { db.run(`ALTER TABLE jobs ADD COLUMN retry_after TEXT`); } catch {}
       db.run(`UPDATE jobs SET status='approved', started_at=NULL, retry_after=?, error_detail=? WHERE id=?`,
@@ -400,6 +410,7 @@ export const setRejectReason = (id: string, reason: string) => backend.setReject
 export const setCeoReview = (id: string, rating: number, critique: string) => backend.setCeoReview(id, rating, critique);
 export const setPlan = (id: string, plan: any) => backend.setPlan(id, plan);
 export const setBuilderModel = (id: string, model: string) => backend.setBuilderModel(id, model);
+export const setBuilderModelUsed = (id: string, model: string) => backend.setBuilderModelUsed(id, model);
 export const requeueWithRetry = (id: string, retryAfter: string, note: string) => backend.requeueWithRetry(id, retryAfter, note);
 export const listCooldowns = () => backend.listCooldowns();
 export const setModelCooldown = (m: string, until: string, reason: string) => backend.setModelCooldown(m, until, reason);

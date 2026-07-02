@@ -44,7 +44,7 @@ export async function handleFetch(req: Request): Promise<Response> {
         pitch: full.idea?.pitch, source: full.idea?.source,
         idea: full.idea, plan: full.plan,
         ceo_rating: full.ceo_rating, ceo_critique: full.ceo_critique,
-        builder_model: full.builder_model, retry_after: full.retry_after,
+        builder_model: full.builder_model, builder_model_used: full.builder_model_used, retry_after: full.retry_after,
         result: full.result,
         signs: jobSigns(full.id),
       } : null;

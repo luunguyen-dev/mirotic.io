@@ -32,6 +32,9 @@ export const BUILDER_CHOICES: Record<string, string> = {
   "claude-sonnet-5":             "Claude Sonnet 5",
   "claude-opus-4-8":             "Claude Opus 4.8",
   "claude-haiku-4-5-20251001":   "Claude Haiku 4.5",
+  "gpt-5.5":                     "GPT-5.5",
+  "gemini-2.5-pro":              "Gemini 2.5 Pro",
+  "gemini-3.5-flash":            "Gemini 3.5 Flash",
 };
 export const BUILDER_DEFAULT = "auto";
 

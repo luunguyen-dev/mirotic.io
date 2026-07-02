@@ -268,8 +268,10 @@ Nhiệm vụ:
 KHÔNG hỏi user — autonomous.`;
       await updatePlanStep(id, "scaffold", "in_progress");
       await updatePlanStep(id, "implement", "in_progress");
-      await runAgenticWithFallback("implement", complexity, implementPrompt, cwd, id,
+      const implementResult = await runAgenticWithFallback("implement", complexity, implementPrompt, cwd, id,
         { preferModel: jobBuilderModel ?? undefined });
+      // Ghi model thực sự dùng (đặc biệt hữu ích khi auto — dashboard hiển thị model dimmer bên chữ Auto).
+      await db.setBuilderModelUsed(id, implementResult.model);
       await updatePlanStep(id, "scaffold", "done");
       await updatePlanStep(id, "implement", "done");
       await updatePlanStep(id, "github", "done");

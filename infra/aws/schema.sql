@@ -15,8 +15,9 @@ CREATE TABLE IF NOT EXISTS jobs (
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS error_detail   TEXT;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS ceo_rating     INTEGER;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS ceo_critique   TEXT;
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS builder_model  TEXT;  -- user pick trước Approve (null = CONFIG.modelBuilder)
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS retry_after    TEXT;  -- ISO ts; approved job bị skip cho đến khi qua mốc này (rate-limit reset)
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS builder_model      TEXT;  -- user pick trước Approve (null = auto → registry route)
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS builder_model_used TEXT;  -- model thực sự dùng trong IMPLEMENT (auto-resolved từ registry)
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS retry_after        TEXT;  -- ISO ts; approved job bị skip đến khi qua mốc (rate-limit reset)
 CREATE INDEX IF NOT EXISTS jobs_status_rating_idx ON jobs (status, ceo_rating DESC);
 CREATE INDEX IF NOT EXISTS jobs_status_idx  ON jobs (status);
 CREATE INDEX IF NOT EXISTS jobs_created_idx ON jobs (created_at DESC);
