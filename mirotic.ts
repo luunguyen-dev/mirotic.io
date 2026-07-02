@@ -89,6 +89,35 @@ async function verifyBuildArtifacts(cwd: string): Promise<string[]> {
 
 import { callLLM, isGpt } from "./llm";
 
+/**
+ * Parse rate-limit error từ Claude output.
+ * Kết hợp match cả 2 pattern:
+ *   - "You've hit your session limit · resets 12pm (Asia/Saigon)"
+ *   - "You've hit your Claude usage limit. Your limit will reset at 5am Asia/Ho_Chi_Minh"
+ * Trả về ISO timestamp reset, hoặc null nếu không phải rate-limit error.
+ */
+function parseRateLimitReset(text: string): string | null {
+  if (!/session limit|usage limit|resets? \d/i.test(text)) return null;
+  const m = text.match(/reset(?:s| at)?\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+  if (!m) {
+    // Không parse được → default 1h nữa reset (an toàn).
+    return new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  }
+  let h = parseInt(m[1], 10);
+  const min = m[2] ? parseInt(m[2], 10) : 0;
+  const ampm = m[3]?.toLowerCase();
+  if (ampm === "pm" && h < 12) h += 12;
+  if (ampm === "am" && h === 12) h = 0;
+  // Message dùng Asia/Saigon (VN, UTC+7). Convert sang UTC.
+  const target = new Date();
+  // set UTC = (VN_h - 7) mod 24
+  let utcH = h - 7;
+  if (utcH < 0) utcH += 24;
+  target.setUTCHours(utcH, min, 0, 0);
+  if (target.getTime() <= Date.now()) target.setUTCDate(target.getUTCDate() + 1);
+  return target.toISOString();
+}
+
 // Reasoning nhẹ (CEO review, plan refinement) — 1-turn text, route theo model prefix
 // (claude-* → Claude CLI, gpt-* → Codex CLI, gemini-* → Google GenAI REST).
 // Retry 2 lần với backoff 2s + 4s để chịu transient rate-limit / CLI hiccup.
@@ -436,9 +465,22 @@ KHÔNG hỏi user — autonomous.`;
       await updatePlanStep(id, "artifacts", "done");
       jLog(id, `[verify] OK — Dockerfile + compose + ship.sh đủ`, "summary");
     } catch (e: any) {
-      jLog(id, `[implement] FAILED: ${e?.message ?? e}`, "error");
-      await updatePlanStep(id, "implement", "failed", String(e?.message ?? e));
-      await db.setResult(id, { error: String(e?.message ?? e) }, "failed");
+      const errMsg = String(e?.message ?? e);
+      // Đọc thêm stderr recent của Claude từ log job để catch "session limit" message
+      // (nhiều khi lỗi in ra assistant text chứ không phải throw string).
+      const recent = await db.getLogs(id, 0, 500).catch(() => [] as any[]);
+      const combined = errMsg + "\n" + recent.slice(-40).map((l: any) => l.line ?? "").join("\n");
+      const resetAt = parseRateLimitReset(combined);
+      if (resetAt) {
+        const waitMin = Math.ceil((new Date(resetAt).getTime() - Date.now()) / 60000);
+        jLog(id, `[implement] RATE-LIMIT: retry sau ${waitMin} phút (reset ${resetAt})`, "error");
+        await updatePlanStep(id, "implement", "pending", `waiting for reset ${resetAt}`);
+        await db.requeueWithRetry(id, resetAt, `RATE_LIMIT: reset ${resetAt}`);
+        return;
+      }
+      jLog(id, `[implement] FAILED: ${errMsg}`, "error");
+      await updatePlanStep(id, "implement", "failed", errMsg);
+      await db.setResult(id, { error: errMsg }, "failed");
       return;
     }
 
@@ -838,7 +880,7 @@ function startServer() {
             pitch: full.idea?.pitch, source: full.idea?.source,
             idea: full.idea, plan: full.plan,
             ceo_rating: full.ceo_rating, ceo_critique: full.ceo_critique,
-            builder_model: full.builder_model,
+            builder_model: full.builder_model, retry_after: full.retry_after,
             result: full.result,
             signs: {
               approve: sign(full.id, "approve"),
@@ -880,15 +922,21 @@ function startServer() {
         const all = detailed.filter(Boolean) as any[];
         const startedToday = await db.countStartedToday();
         const todayPrefix = new Date().toISOString().slice(0, 10);
+        const nowIso = new Date().toISOString();
         const counts = {
           proposed: all.filter((j) => j.status === "proposed").length,
-          approved: all.filter((j) => j.status === "approved").length,
+          approved: all.filter((j) => j.status === "approved" && (!j.retry_after || j.retry_after <= nowIso)).length,
+          waitingRetry: all.filter((j) => j.status === "approved" && j.retry_after && j.retry_after > nowIso).length,
           building: all.filter((j) => j.status === "building").length,
           demoReady: all.filter((j) => j.status === "demo-ready").length,
           deployRequested: all.filter((j) => j.status === "deploy-requested").length,
           deploying: all.filter((j) => j.status === "deploying").length,
           failedToday: all.filter((j) => j.status === "failed" && j.started_at?.startsWith(todayPrefix)).length,
         };
+        const soonestRetry = all
+          .filter((j) => j.status === "approved" && j.retry_after && j.retry_after > nowIso)
+          .map((j) => j.retry_after!)
+          .sort()[0] ?? null;
         const running = all
           .filter((j) => j.status === "building" || j.status === "deploying")
           .map((j) => ({ id: j.id, title: j.idea?.title, status: j.status, started_at: j.started_at, builder_model: j.builder_model }));
@@ -902,6 +950,7 @@ function startServer() {
           startedToday, dailyLimit: CONFIG.dailyBuildLimit,
           counts, running,
           nextBatchAt: next.toISOString(),
+          soonestRetryAt: soonestRetry,
           morningAt: CONFIG.morningAt,
           pollIntervalMin: CONFIG.pollIntervalMin,
         });

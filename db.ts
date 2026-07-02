@@ -28,6 +28,7 @@ export type Job = {
   ceo_rating: number | null;
   ceo_critique: string | null;  // JSON blob {en, vi}
   builder_model: string | null; // user pick trước Approve; null = CONFIG.modelBuilder
+  retry_after: string | null;   // ISO ts; approved job bị skip đến khi qua mốc (rate-limit reset)
 };
 
 const SCHEMA = `CREATE TABLE IF NOT EXISTS jobs (
@@ -50,6 +51,7 @@ function parse(r: any): Job {
     ceo_rating: r.ceo_rating ?? null,
     ceo_critique: r.ceo_critique ?? null,
     builder_model: r.builder_model ?? null,
+    retry_after: r.retry_after ?? null,
   };
 }
 
@@ -96,6 +98,7 @@ interface Backend {
   setCeoReview(id: string, rating: number, critique: string): Promise<void>;
   setPlan(id: string, plan: any): Promise<void>;
   setBuilderModel(id: string, model: string): Promise<void>;
+  requeueWithRetry(id: string, retryAfter: string, note: string): Promise<void>;   // reset status → approved, set retry_after
   countStartedToday(): Promise<number>;
   claimNextApproved(): Promise<Job | null>;        // approved → building (+started_at)
   claimNextDeployRequested(): Promise<Job | null>; // deploy-requested → deploying
@@ -150,13 +153,23 @@ function pgBackend(url: string): Backend {
     async setBuilderModel(id, model) {
       await sql`UPDATE jobs SET builder_model = ${model} WHERE id = ${id}`;
     },
+    async requeueWithRetry(id, retryAfter, note) {
+      await sql`UPDATE jobs SET status = 'approved', started_at = NULL,
+        retry_after = ${retryAfter}, error_detail = ${note} WHERE id = ${id}`;
+    },
     async countStartedToday() {
       const r = await sql`SELECT count(*)::int AS n FROM jobs WHERE started_at IS NOT NULL AND left(started_at, 10) = ${today()}`;
       return r[0].n;
     },
     async claimNextApproved() {
       const r = await sql`UPDATE jobs SET status = 'building', started_at = ${now()}
-        WHERE id = (SELECT id FROM jobs WHERE status = 'approved' ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
+        WHERE id = (
+          SELECT id FROM jobs
+          WHERE status = 'approved'
+            AND (retry_after IS NULL OR retry_after <= ${now()})
+          ORDER BY created_at LIMIT 1
+          FOR UPDATE SKIP LOCKED
+        )
         RETURNING *`;
       return r.length ? parse(r[0]) : null;
     },
@@ -269,6 +282,11 @@ function sqliteBackend(): Backend {
       try { db.run(`ALTER TABLE jobs ADD COLUMN builder_model TEXT`); } catch {}
       db.run(`UPDATE jobs SET builder_model = ? WHERE id = ?`, [model, id]);
     },
+    async requeueWithRetry(id, retryAfter, note) {
+      try { db.run(`ALTER TABLE jobs ADD COLUMN retry_after TEXT`); } catch {}
+      db.run(`UPDATE jobs SET status='approved', started_at=NULL, retry_after=?, error_detail=? WHERE id=?`,
+        [retryAfter, note, id]);
+    },
     async countStartedToday() {
       const r = db.query(`SELECT count(*) AS n FROM jobs WHERE started_at IS NOT NULL AND substr(started_at,1,10) = ?`).get(today()) as any;
       return r.n;
@@ -339,6 +357,7 @@ export const setRejectReason = (id: string, reason: string) => backend.setReject
 export const setCeoReview = (id: string, rating: number, critique: string) => backend.setCeoReview(id, rating, critique);
 export const setPlan = (id: string, plan: any) => backend.setPlan(id, plan);
 export const setBuilderModel = (id: string, model: string) => backend.setBuilderModel(id, model);
+export const requeueWithRetry = (id: string, retryAfter: string, note: string) => backend.requeueWithRetry(id, retryAfter, note);
 export const countStartedToday = () => backend.countStartedToday();
 export const claimNextApproved = () => backend.claimNextApproved();
 export const claimNextDeployRequested = () => backend.claimNextDeployRequested();

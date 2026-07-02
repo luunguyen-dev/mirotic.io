@@ -158,11 +158,18 @@ async function renderStatusBar() {
   const gate = `<span class="stat gate ${gateFull ? "full" : ""}"><span class="k">gate hôm nay</span><span class="v">${s.startedToday}/${s.dailyLimit}</span></span>`;
   const queue = [
     stat(c.approved > 0 ? "attention" : "zero", "approved", c.approved),
+    c.waitingRetry > 0 ? stat("attention", "rate-limited", c.waitingRetry) : "",
     stat(c.building > 0 ? "attention" : "zero", "building", c.building),
     stat(c.demoReady > 0 ? "attention" : "zero", "demo-ready", c.demoReady),
     stat((c.deployRequested + c.deploying) > 0 ? "attention" : "zero", "deploying", c.deployRequested + c.deploying),
     stat(c.failedToday > 0 ? "error" : "zero", "failed today", c.failedToday),
   ].join("");
+  // Nếu có job waiting retry, hiển thị soonest reset time.
+  const retryStat = s.soonestRetryAt ? (() => {
+    const rel = Math.max(0, Math.floor((new Date(s.soonestRetryAt).getTime() - Date.now()) / 60000));
+    const txt = rel < 60 ? `${rel}m` : `${Math.floor(rel/60)}h ${rel%60}m`;
+    return `<span class="stat attention"><span class="k">next retry</span><span class="v">${txt}</span></span>`;
+  })() : "";
   const nextBatch = new Date(s.nextBatchAt);
   const nextRel = Math.max(0, Math.floor((nextBatch.getTime() - Date.now()) / 60000));
   const nextTxt = nextRel < 60 ? `${nextRel}m` : `${Math.floor(nextRel / 60)}h ${nextRel % 60}m`;
@@ -183,7 +190,7 @@ async function renderStatusBar() {
     ? `<span class="label">đang chạy</span>${pills.join("")}`
     : `<span class="none">không có executor nào đang xử lý</span>`;
 
-  bar.innerHTML = `${gate}<span class="sep"></span>${queue}<span class="sep"></span>${nextStat}${pollStat}<span class="sep"></span>${runningBlock}`;
+  bar.innerHTML = `${gate}<span class="sep"></span>${queue}<span class="sep"></span>${nextStat}${retryStat}${pollStat}<span class="sep"></span>${runningBlock}`;
 }
 
 async function load() {
@@ -217,10 +224,16 @@ async function load() {
       const card = document.createElement("div");
       card.className = `card ${j.status}`;
       const isLive = j.status === "building" || j.status === "deploying";
-      const tickIso = isLive && j.started_at ? j.started_at : j.created_at;
-      const prefix = isLive && j.started_at ? "▶ " : "";
-      const suffix = isLive && j.started_at ? " running" : " ago";
-      const timeLabel = `${prefix}${relTime(tickIso)}${suffix}`;
+      const now = new Date().toISOString();
+      const waitingRetry = j.status === "approved" && j.retry_after && j.retry_after > now;
+      const tickIso = waitingRetry ? j.retry_after
+        : (isLive && j.started_at ? j.started_at : j.created_at);
+      const prefix = waitingRetry ? "⏳ retry in "
+        : (isLive && j.started_at ? "▶ " : "");
+      const suffix = waitingRetry ? "" : (isLive && j.started_at ? " running" : " ago");
+      const timeLabel = waitingRetry
+        ? `${prefix}${Math.max(0, Math.floor((new Date(j.retry_after).getTime() - Date.now())/60000))}m`
+        : `${prefix}${relTime(tickIso)}${suffix}`;
       const titleEn = j.idea?.title_en || j.title || j.slug || j.id;
       const titleVi = j.idea?.title_vi;
       const titleVn = titleVi && titleVi !== titleEn ? `<div class="title-vi">${escapeHtml(titleVi)}</div>` : "";
