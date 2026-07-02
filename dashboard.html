@@ -287,6 +287,13 @@ async function openDrawer(id) {
     actions.push(`<a class="primary" onclick="doAction('${id}','deploy','${j.signs.deploy}')">Deploy</a>`);
     actions.push(`<a onclick="doPromote('${id}','${j.signs.promote}')" style="background:#3a2a4a;border-color:#5a4a7a;color:#d0b8ff">Promote → Project</a>`);
   }
+  // Retry cho failed / rejected / approved-waiting-retry.
+  const nowIso = new Date().toISOString();
+  const waitingRetry = j.status === "approved" && j.retry_after && j.retry_after > nowIso;
+  if (j.status === "failed" || j.status === "rejected" || waitingRetry) {
+    const label = waitingRetry ? "Retry now (skip wait)" : "Retry";
+    actions.push(`<a onclick="doAction('${id}','retry','${j.signs.retry}')" style="background:#2a3a4a;border-color:#3a5a7a;color:#7bd0e0">↻ ${label}</a>`);
+  }
   const builderInfo = j.builder_model ? `<div class="sub" style="margin-top:-8px">Builder: <code>${escapeHtml(j.builder_model)}</code></div>` : "";
   const titleEn = j.idea?.title_en || j.idea?.title || j.id;
   const titleVi = j.idea?.title_vi || j.idea?.title || "";

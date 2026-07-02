@@ -761,6 +761,8 @@ const page = (b: string, status = 200) =>
 const ACTIONS: Record<string, JobStatus> = { approve: "approved", reject: "rejected", deploy: "deploy-requested" };
 // Promote không đổi status của job — chỉ tạo project row. Handler riêng.
 const PROMOTE_ACTION = "promote";
+// Retry: reset failed/waiting job → approved, clear retry_after để poller pick ngay.
+const RETRY_ACTION = "retry";
 
 // Model builder user có thể pick khi Approve. Key = short name hiển thị; value = model name gửi CLI.
 // Mở rộng khi wire gpt-5.5 / gemini agentic mượt: chỉ thêm 1 entry.
@@ -887,6 +889,7 @@ function startServer() {
               reject: sign(full.id, "reject"),
               deploy: sign(full.id, "deploy"),
               promote: sign(full.id, "promote"),
+              retry: sign(full.id, "retry"),
             },
           } : null;
         }));
@@ -906,6 +909,7 @@ function startServer() {
           signs: {
             approve: sign(job.id, "approve"), reject: sign(job.id, "reject"),
             deploy: sign(job.id, "deploy"), promote: sign(job.id, "promote"),
+            retry: sign(job.id, "retry"),
           },
         });
       }
@@ -992,6 +996,19 @@ function startServer() {
         const r = await promoteJobToProject(id);
         if (!r) return page(`❌ Không thể promote ${id}: chỉ demo-ready mới promote được`, 400);
         return Response.json({ ok: true, project_id: r.projectId, issues: r.issues });
+      }
+      // Retry: reset job → approved, xóa retry_after để poller pick ngay.
+      // Áp dụng cho: failed (build fail) | approved còn trong retry window (skip wait) | rejected (đổi ý).
+      if (action === RETRY_ACTION && id) {
+        if (!verify(id, RETRY_ACTION, url.searchParams.get("t") ?? "")) return page("❌ Token sai", 403);
+        const j = await db.getJob(id);
+        if (!j) return page("❌ Không thấy job", 404);
+        if (!["failed", "approved", "rejected"].includes(j.status)) {
+          return page(`❌ Chỉ retry được failed/approved/rejected. Status hiện tại: ${j.status}`, 400);
+        }
+        // Requeue với retry_after=now-1s (clear window). Kèm note ai retry manually.
+        await db.requeueWithRetry(id, new Date(Date.now() - 1000).toISOString(), "manual retry");
+        return Response.json({ ok: true, id, new_status: "approved" });
       }
       if (action in ACTIONS) {
         if (!verify(id, action, url.searchParams.get("t") ?? "")) return page("❌ Token sai", 403);
