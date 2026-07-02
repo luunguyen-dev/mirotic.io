@@ -82,16 +82,25 @@
   .card .time { font-size: 10px; color: #555; margin-top: 4px; }
   .card .time.live { color: #e0d47b; font-weight: 500; }
 
-  /* Running-now banner */
-  .running-bar { padding: 10px 20px; border-bottom: 1px solid #1c1c1f; background: #0f0f12; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; min-height: 40px; }
-  .running-bar .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin-right: 6px; }
-  .running-bar .pill { background: #1a1a1e; border: 1px solid #2a2a2e; padding: 4px 10px; border-radius: 12px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  /* Status bar (system state) */
+  .running-bar { padding: 8px 20px; border-bottom: 1px solid #1c1c1f; background: #0f0f12; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; min-height: 40px; font-size: 12px; }
+  .running-bar .label { text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin-right: 4px; font-size: 10px; }
+  .running-bar .stat { background: #1a1a1e; border: 1px solid #2a2a2e; padding: 3px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 5px; }
+  .running-bar .stat .k { color: #666; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .running-bar .stat .v { color: #ddd; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .running-bar .stat.gate .v { color: #a3d9a5; }
+  .running-bar .stat.gate.full .v { color: #e0d47b; }
+  .running-bar .stat.zero .v { color: #444; }
+  .running-bar .stat.attention .v { color: #e0d47b; }
+  .running-bar .stat.error .v { color: #e07b7b; }
+  .running-bar .sep { width: 1px; height: 18px; background: #2a2a2e; margin: 0 2px; }
+  .running-bar .pill { background: #1a1a1e; border: 1px solid #2a2a2e; padding: 3px 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
   .running-bar .pill:hover { background: #22222a; }
   .running-bar .pill .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
   .running-bar .pill.building .dot { background: #e0d47b; box-shadow: 0 0 8px #e0d47b; animation: pulse 1.5s infinite; }
   .running-bar .pill.deploying .dot { background: #d67be0; box-shadow: 0 0 8px #d67be0; animation: pulse 1.5s infinite; }
-  .running-bar .pill .elapsed { color: #888; font-variant-numeric: tabular-nums; }
-  .running-bar .none { color: #555; font-size: 12px; font-style: italic; }
+  .running-bar .pill .elapsed { color: #888; font-variant-numeric: tabular-nums; font-size: 11px; }
+  .running-bar .none { color: #555; font-style: italic; font-size: 11px; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 </style>
 </head>
@@ -137,29 +146,48 @@ function relTime(iso) {
   return `${Math.floor(h / 24)}d`;
 }
 
-function renderRunningBar(jobs) {
-  const running = jobs.filter(j => j.status === "building" || j.status === "deploying");
+async function renderStatusBar() {
   const bar = document.getElementById("running-bar");
-  if (running.length === 0) {
-    bar.innerHTML = `<span class="label">đang chạy</span><span class="none">không có job nào executor đang xử lý</span>`;
-    return;
-  }
-  const pills = running.map(j => {
+  const s = await fetch("/api/status").then(r => r.json()).catch(() => null);
+  if (!s) { bar.innerHTML = `<span class="none">không lấy được /api/status</span>`; return; }
+  const gateFull = s.startedToday >= s.dailyLimit;
+  const c = s.counts;
+  const stat = (kls, k, v) => `<span class="stat ${kls}"><span class="k">${k}</span><span class="v">${v}</span></span>`;
+  const gate = `<span class="stat gate ${gateFull ? "full" : ""}"><span class="k">gate hôm nay</span><span class="v">${s.startedToday}/${s.dailyLimit}</span></span>`;
+  const queue = [
+    stat(c.approved > 0 ? "attention" : "zero", "approved", c.approved),
+    stat(c.building > 0 ? "attention" : "zero", "building", c.building),
+    stat(c.demoReady > 0 ? "attention" : "zero", "demo-ready", c.demoReady),
+    stat((c.deployRequested + c.deploying) > 0 ? "attention" : "zero", "deploying", c.deployRequested + c.deploying),
+    stat(c.failedToday > 0 ? "error" : "zero", "failed today", c.failedToday),
+  ].join("");
+  const nextBatch = new Date(s.nextBatchAt);
+  const nextRel = Math.max(0, Math.floor((nextBatch.getTime() - Date.now()) / 60000));
+  const nextTxt = nextRel < 60 ? `${nextRel}m` : `${Math.floor(nextRel / 60)}h ${nextRel % 60}m`;
+  const nextStat = stat("", "next batch", `${nextTxt} (${s.morningAt})`);
+  const pollStat = stat("", "poll", `${s.pollIntervalMin}m`);
+
+  const pills = (s.running || []).map(j => {
     const elapsedAttr = j.started_at ? `data-tick="${escapeHtml(j.started_at)}" data-prefix="${escapeHtml(j.status)} · "` : "";
     const elapsedText = j.started_at ? `${j.status} · ${relTime(j.started_at)}` : `${j.status} · —`;
+    const modelBadge = j.builder_model ? ` <span style="color:#666;font-size:10px">(${escapeHtml(j.builder_model)})</span>` : "";
     return `<span class="pill ${j.status}" onclick="openDrawer('${escapeHtml(j.id)}')">
       <span class="dot"></span>
-      <span>${escapeHtml(j.title || j.id)}</span>
+      <span>${escapeHtml(j.title || j.id)}${modelBadge}</span>
       <span class="elapsed" ${elapsedAttr}>${escapeHtml(elapsedText)}</span>
     </span>`;
   });
-  bar.innerHTML = `<span class="label">đang chạy</span>${pills.join("")}`;
+  const runningBlock = pills.length
+    ? `<span class="label">đang chạy</span>${pills.join("")}`
+    : `<span class="none">không có executor nào đang xử lý</span>`;
+
+  bar.innerHTML = `${gate}<span class="sep"></span>${queue}<span class="sep"></span>${nextStat}${pollStat}<span class="sep"></span>${runningBlock}`;
 }
 
 async function load() {
   const jobs = await fetch("/api/jobs").then(r => r.json());
   document.getElementById("meta").textContent = `${jobs.length} jobs · refreshed ${new Date().toLocaleTimeString()}`;
-  renderRunningBar(jobs);
+  renderStatusBar();
   const board = document.getElementById("board");
   board.innerHTML = "";
   for (const [key, label] of COLS) {

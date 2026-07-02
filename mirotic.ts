@@ -873,6 +873,39 @@ function startServer() {
       if (path === "/api/builder-choices") {
         return Response.json({ choices: BUILDER_CHOICES, default: "sonnet" });
       }
+      // Snapshot trạng thái hệ thống — dashboard hiển thị 1 dòng tóm tắt.
+      if (path === "/api/status") {
+        const jobs = await db.listJobs(500);
+        const detailed = await Promise.all(jobs.map((j) => db.getJob(j.id)));
+        const all = detailed.filter(Boolean) as any[];
+        const startedToday = await db.countStartedToday();
+        const todayPrefix = new Date().toISOString().slice(0, 10);
+        const counts = {
+          proposed: all.filter((j) => j.status === "proposed").length,
+          approved: all.filter((j) => j.status === "approved").length,
+          building: all.filter((j) => j.status === "building").length,
+          demoReady: all.filter((j) => j.status === "demo-ready").length,
+          deployRequested: all.filter((j) => j.status === "deploy-requested").length,
+          deploying: all.filter((j) => j.status === "deploying").length,
+          failedToday: all.filter((j) => j.status === "failed" && j.started_at?.startsWith(todayPrefix)).length,
+        };
+        const running = all
+          .filter((j) => j.status === "building" || j.status === "deploying")
+          .map((j) => ({ id: j.id, title: j.idea?.title, status: j.status, started_at: j.started_at, builder_model: j.builder_model }));
+        // Next Prototyper batch — parse HH:MM, đưa về UTC ISO
+        const [h, m] = CONFIG.morningAt.split(":").map(Number);
+        const nowD = new Date();
+        const next = new Date(nowD);
+        next.setUTCHours(h - 7 < 0 ? h - 7 + 24 : h - 7, m, 0, 0);  // MORNING_AT = giờ VN, convert UTC (VN = UTC+7)
+        if (next <= nowD) next.setUTCDate(next.getUTCDate() + 1);
+        return Response.json({
+          startedToday, dailyLimit: CONFIG.dailyBuildLimit,
+          counts, running,
+          nextBatchAt: next.toISOString(),
+          morningAt: CONFIG.morningAt,
+          pollIntervalMin: CONFIG.pollIntervalMin,
+        });
+      }
       // P1 — projects + issues API
       if (path === "/api/projects") {
         return Response.json(await db.listProjects(100));
