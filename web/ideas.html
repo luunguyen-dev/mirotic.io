@@ -301,16 +301,29 @@ async function openDrawer(id) {
   const actions = [];
   let builderPicker = "";
   if (j.status === "proposed") {
-    // Model picker: custom <details> dropdown — HTML options styled với bright name + dim version.
-    const items = Object.entries(bc.choices || {}).map(([key, meta]) =>
-      `<div class="item ${key === bc.default ? "selected" : ""}" onclick="pickBuilder('${escapeHtml(key)}')">
-        ${renderModelLabel(meta)}
-      </div>`
-    ).join("");
-    const cur = bc.choices?.[selectedBuilderKey] ?? { name: "Auto" };
+    // Model picker: custom <details> dropdown — bright name + dim version.
+    // Auto row hiển thị preview model do registry đề xuất ngay bây giờ.
+    const rec = j.auto_recommended;   // { model, meta: {name, version?} } | null
+    const autoLabel = (baseMeta) => rec
+      ? `${renderModelLabel(baseMeta)}<span style="opacity:0.5;margin-left:6px">(${renderModelLabel(rec.meta)})</span>`
+      : renderModelLabel(baseMeta);
+
+    const items = Object.entries(bc.choices || {}).map(([key, meta]) => {
+      const inner = key === "auto" ? autoLabel(meta) : renderModelLabel(meta);
+      return `<div class="item ${key === bc.default ? "selected" : ""}" onclick="pickBuilder('${escapeHtml(key)}')">
+        ${inner}
+      </div>`;
+    }).join("");
+
+    const curKey = selectedBuilderKey ?? "auto";
+    const curMeta = bc.choices?.[curKey] ?? { name: "Auto" };
+    const summaryInner = curKey === "auto" ? autoLabel(curMeta) : renderModelLabel(curMeta);
+    // Cache recommended cho pickBuilder() sau này biết reconstruct summary.
+    window._autoRecommended = rec;
+
     builderPicker = `<div class="field"><label>Builder model</label>
       <details class="picker" id="builder-picker">
-        <summary id="builder-summary">${renderModelLabel(cur)}</summary>
+        <summary id="builder-summary">${summaryInner}</summary>
         <div class="menu">${items}</div>
       </details>
     </div>`;
@@ -339,7 +352,7 @@ async function openDrawer(id) {
     }
     // Auto mode
     const resolved = j.builder_model_used
-      ? ` <span style="opacity:0.5">(${renderModelLabel(metaOf(j.builder_model_used))})</span>`
+      ? `<span style="opacity:0.5;margin-left:6px">(${renderModelLabel(metaOf(j.builder_model_used))})</span>`
       : "";
     return `<div class="sub" style="margin-top:-8px">Builder: ${renderModelLabel({ name: "Auto" })}${resolved}</div>`;
   })();
@@ -496,11 +509,14 @@ function pickBuilder(key) {
   selectedBuilderKey = key;
   const bc = builderChoices;
   const meta = bc?.choices?.[key] ?? { name: key };
-  document.getElementById("builder-summary").innerHTML = renderModelLabel(meta);
+  const rec = window._autoRecommended;
+  const inner = (key === "auto" && rec)
+    ? `${renderModelLabel(meta)}<span style="opacity:0.5;margin-left:6px">(${renderModelLabel(rec.meta)})</span>`
+    : renderModelLabel(meta);
+  document.getElementById("builder-summary").innerHTML = inner;
   // Highlight item selected + đóng picker.
-  document.querySelectorAll("#builder-picker .item").forEach(el => el.classList.remove("selected"));
   document.querySelectorAll("#builder-picker .item").forEach(el => {
-    if (el.textContent.trim().startsWith(meta.name)) el.classList.add("selected");
+    el.classList.toggle("selected", el.getAttribute("onclick")?.includes(`'${key}'`));
   });
   document.getElementById("builder-picker").open = false;
 }

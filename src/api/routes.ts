@@ -16,6 +16,19 @@ import {
   ACTIONS, PROMOTE_ACTION, RETRY_ACTION, BUILDER_CHOICES, BUILDER_DEFAULT,
 } from "./hmac";
 
+// Compute recommended agentic model NGAY LÚC NÀY cho 1 job (dựa CEO rating + cooldown).
+// Chỉ tính khi status=proposed → dashboard preview cho user thấy Auto sẽ pick gì.
+async function computeAutoRecommended(job: any): Promise<{ model: string; meta: any } | null> {
+  if (!job?.ceo_rating && job?.ceo_rating !== 0) return null;
+  const complexity = registry.complexityFromRating(job.ceo_rating);
+  try {
+    const model = await registry.pickModel("agentic", complexity);
+    // Meta = entry trong BUILDER_CHOICES nếu có, fallback raw id.
+    const meta = (BUILDER_CHOICES as any)[model] || { name: model };
+    return { model, meta };
+  } catch { return null; }   // ALL_COOLDOWN
+}
+
 // Simple HTML response helper for HMAC action confirmation pages.
 export const page = (body: string, status = 200) =>
   new Response(`<meta charset=utf8><body style="font-family:system-ui;padding:32px;max-width:760px">${body}</body>`,
@@ -60,7 +73,9 @@ export async function handleFetch(req: Request): Promise<Response> {
   if (path.startsWith("/api/jobs/")) {
     const job = await db.getJob(path.slice("/api/jobs/".length));
     if (!job) return new Response("not found", { status: 404 });
-    return Response.json({ ...job, signs: jobSigns(job.id) });
+    // Preview: model sẽ được Auto pick ngay lúc này (chỉ cho status=proposed).
+    const auto_recommended = job.status === "proposed" ? await computeAutoRecommended(job) : null;
+    return Response.json({ ...job, signs: jobSigns(job.id), auto_recommended });
   }
   if (path === "/api/pool") return Response.json(await db.listPool(100));
   if (path === "/api/builder-choices") {
