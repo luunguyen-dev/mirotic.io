@@ -30,6 +30,7 @@ const CONFIG = {
   hmacSecret: env("HMAC_SECRET", "change-me-in-prod"),
   morningAt: env("MORNING_AT", "07:00"),
   pollIntervalMin: Number(env("POLL_INTERVAL_MIN", "5")),
+  dailyBuildLimit: Number(env("DAILY_BUILD_LIMIT", "3")),
   githubOwner: env("GITHUB_OWNER", "you"),
   awsHost: env("AWS_HOST", "your-ec2-host"),
   outbox: `${DATA_DIR}/outbox`,
@@ -632,11 +633,18 @@ async function pollOnce(): Promise<void> {
   while (d) { await deploy(d.id); d = await db.claimNextDeployRequested(); }
   // 2) Seed empty projects (LLM cần Claude auth — chỉ chạy trên worker Mac)
   try { await seedEmptyProjects(); } catch (e: any) { log(`(seedEmptyProjects err: ${e?.message ?? e})`); }
-  // 3) Build: tối đa 1 ý tưởng/ngày
-  if ((await db.countStartedToday()) >= 1) return log("⏭️  đã thực thi 1 ý tưởng hôm nay — chờ ngày mai");
-  const job = await db.claimNextApproved();
-  if (job) await runBuild(job.id);
-  else log("⏳ chưa có ý tưởng status=approved");
+  // 3) Build: tối đa DAILY_BUILD_LIMIT ý tưởng/ngày. Claim tuần tự đến khi hit gate hoặc hết approved.
+  while (true) {
+    const startedToday = await db.countStartedToday();
+    if (startedToday >= CONFIG.dailyBuildLimit) {
+      log(`⏭️  đã thực thi ${startedToday}/${CONFIG.dailyBuildLimit} ý tưởng hôm nay — chờ ngày mai`);
+      return;
+    }
+    const job = await db.claimNextApproved();
+    if (!job) { log("⏳ chưa có ý tưởng status=approved"); return; }
+    log(`▶️  build ${startedToday + 1}/${CONFIG.dailyBuildLimit} hôm nay: ${job.id}`);
+    await runBuild(job.id);
+  }
 }
 
 // ====================== SINH Ý TƯỞNG ==============================
