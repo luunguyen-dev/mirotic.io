@@ -21,20 +21,21 @@ export const RETRY_ACTION = "retry";
 
 // User có thể pick model builder qua dropdown khi Approve.
 //
-// Key = model identifier gửi tới Claude CLI (`--model <key>`).
+// Key = model identifier gửi tới Claude CLI / Codex CLI (`--model <key>`).
 //       Đặc biệt: "auto" là sentinel = KHÔNG set builder_model → registry
 //       tự route theo complexity + cooldown fallback.
-// Value = label hiển thị (tên chính thức + version như Anthropic công bố).
+// Value = { name, version? }: UI hiển thị `name` sáng + `version` mờ.
 //
 // Mở rộng: thêm entry mới ở đây, không cần đổi code route hoặc UI.
-export const BUILDER_CHOICES: Record<string, string> = {
-  "auto":                        "Auto",
-  "claude-sonnet-5":             "Claude Sonnet 5",
-  "claude-opus-4-8":             "Claude Opus 4.8",
-  "claude-haiku-4-5-20251001":   "Claude Haiku 4.5",
-  "gpt-5.5":                     "GPT-5.5",
-  "gemini-2.5-pro":              "Gemini 2.5 Pro",
-  "gemini-3.5-flash":            "Gemini 3.5 Flash",
+// Gemini không có agentic runtime khả dụng (Claude/Codex CLI chưa hỗ trợ),
+// nên KHÔNG cho chọn ở Builder — chỉ dùng cho text tier trong registry.
+export type BuilderChoice = { name: string; version?: string };
+export const BUILDER_CHOICES: Record<string, BuilderChoice> = {
+  "auto":                        { name: "Auto" },
+  "claude-sonnet-5":             { name: "Sonnet", version: "5" },
+  "claude-opus-4-8":             { name: "Opus",   version: "4.8" },
+  "claude-haiku-4-5-20251001":   { name: "Haiku",  version: "4.5" },
+  "gpt-5.5":                     { name: "GPT",    version: "5.5" },
 };
 export const BUILDER_DEFAULT = "auto";
 

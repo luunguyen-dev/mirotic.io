@@ -80,6 +80,21 @@
   .log-tail .log-line.summary { color: #a3d9a5; font-weight: 500; }
   .log-tail .log-line.error { color: #e07b7b; }
   .log-empty { color: #444; font-size: 11px; padding: 8px; }
+
+  /* Builder model picker (custom dropdown với bright name + dim version) */
+  .model-label { display: inline-flex; align-items: baseline; gap: 6px; }
+  .model-label .name { color: #e8e8e8; }
+  .model-label .ver  { color: #888; font-size: 0.9em; }
+  .picker { position: relative; }
+  .picker summary { list-style: none; cursor: pointer; padding: 8px 30px 8px 12px; border-radius: 5px; background: #1a1a1e; border: 1px solid #2a2a2e; font: inherit; display: flex; align-items: center; position: relative; }
+  .picker summary::-webkit-details-marker { display: none; }
+  .picker summary::after { content: "⌄"; position: absolute; right: 12px; color: #666; font-size: 14px; }
+  .picker summary:hover { background: #22222a; border-color: #3a3a40; }
+  .picker[open] summary { border-color: #7ba8e0; }
+  .picker .menu { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #1a1a1e; border: 1px solid #2a2a2e; border-radius: 5px; padding: 4px; z-index: 20; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+  .picker .menu .item { padding: 6px 10px; border-radius: 4px; cursor: pointer; }
+  .picker .menu .item:hover { background: #2a2a2e; }
+  .picker .menu .item.selected { background: #1f4d39; }
   .card .time { font-size: 10px; color: #555; margin-top: 4px; }
   .card .time.live { color: #e0d47b; font-weight: 500; }
 
@@ -286,14 +301,18 @@ async function openDrawer(id) {
   const actions = [];
   let builderPicker = "";
   if (j.status === "proposed") {
-    // Model picker cho Builder — Approve URL sẽ include ?model=<key>.
-    // "auto" (mặc định) = registry chọn theo complexity + cooldown, auto-fallback nếu hit limit.
-    // Label lấy trực tiếp từ map (tên chính thức + version do server config).
-    const opts = Object.entries(bc.choices || {}).map(([key, label]) =>
-      `<option value="${escapeHtml(key)}" ${key === bc.default ? "selected" : ""}>${escapeHtml(label)}</option>`
+    // Model picker: custom <details> dropdown — HTML options styled với bright name + dim version.
+    const items = Object.entries(bc.choices || {}).map(([key, meta]) =>
+      `<div class="item ${key === bc.default ? "selected" : ""}" onclick="pickBuilder('${escapeHtml(key)}')">
+        ${renderModelLabel(meta)}
+      </div>`
     ).join("");
+    const cur = bc.choices?.[selectedBuilderKey] ?? { name: "Auto" };
     builderPicker = `<div class="field"><label>Builder model</label>
-      <select id="builder-model-select" onchange="selectedBuilderKey=this.value" style="width:100%;padding:6px;border-radius:5px;background:#1a1a1e;color:#ddd;border:1px solid #2a2a2e;font:inherit">${opts}</select>
+      <details class="picker" id="builder-picker">
+        <summary id="builder-summary">${renderModelLabel(cur)}</summary>
+        <div class="menu">${items}</div>
+      </details>
     </div>`;
     actions.push(`<a class="primary" onclick="doApprove('${id}','${j.signs.approve}')">Approve</a>`);
     actions.push(`<a class="danger" onclick="doAction('${id}','reject','${j.signs.reject}')">Reject</a>`);
@@ -310,17 +329,19 @@ async function openDrawer(id) {
     actions.push(`<a onclick="doAction('${id}','retry','${j.signs.retry}')" style="background:#2a3a4a;border-color:#3a5a7a;color:#7bd0e0">↻ ${label}</a>`);
   }
   // builder_model = null → auto (registry chọn). builder_model_used = model thực sự đã dùng.
-  // Auto mode: hiển thị "Auto" chính + "(Claude Sonnet 5)" dimmer bên phải khi đã resolved.
+  // Auto mode: hiển thị "Auto" chính + "(Sonnet 5)" dimmer bên phải khi đã resolved.
   const builderInfo = (() => {
     if (j.status === "proposed") return "";
-    const bc = builderChoices?.choices || {};
-    const labelOf = (mid) => bc[mid] || mid;    // fallback = raw id nếu không có trong map
+    const map = builderChoices?.choices || {};
+    const metaOf = (mid) => map[mid] || { name: mid };   // fallback = raw id nếu không có trong map
     if (j.builder_model) {
-      return `<div class="sub" style="margin-top:-8px">Builder: <code>${escapeHtml(labelOf(j.builder_model))}</code></div>`;
+      return `<div class="sub" style="margin-top:-8px">Builder: ${renderModelLabel(metaOf(j.builder_model))}</div>`;
     }
     // Auto mode
-    const resolved = j.builder_model_used ? ` <span style="opacity:0.5">(${escapeHtml(labelOf(j.builder_model_used))})</span>` : "";
-    return `<div class="sub" style="margin-top:-8px">Builder: <code>Auto</code>${resolved}</div>`;
+    const resolved = j.builder_model_used
+      ? ` <span style="opacity:0.5">(${renderModelLabel(metaOf(j.builder_model_used))})</span>`
+      : "";
+    return `<div class="sub" style="margin-top:-8px">Builder: ${renderModelLabel({ name: "Auto" })}${resolved}</div>`;
   })();
   const titleEn = j.idea?.title_en || j.idea?.title || j.id;
   const titleVi = j.idea?.title_vi || j.idea?.title || "";
@@ -462,6 +483,28 @@ function linkify(text) {
   const parts = String(text || "").split(/(https?:\/\/[^\s]+)/g);
   return parts.map(p => p.match(/^https?:\/\//) ? `<a href="${escapeHtml(p)}" target="_blank" rel="noopener" style="color:#7ba8e0">${escapeHtml(p)}</a>` : escapeHtml(p)).join("");
 }
+// Render model label với name sáng + version mờ (từ config BUILDER_CHOICES).
+function renderModelLabel(meta) {
+  if (!meta) return "";
+  const name = escapeHtml(meta.name || "");
+  const ver = meta.version ? `<span class="ver">${escapeHtml(meta.version)}</span>` : "";
+  return `<span class="model-label"><span class="name">${name}</span>${ver}</span>`;
+}
+
+// Xử lý click chọn item trong custom picker.
+function pickBuilder(key) {
+  selectedBuilderKey = key;
+  const bc = builderChoices;
+  const meta = bc?.choices?.[key] ?? { name: key };
+  document.getElementById("builder-summary").innerHTML = renderModelLabel(meta);
+  // Highlight item selected + đóng picker.
+  document.querySelectorAll("#builder-picker .item").forEach(el => el.classList.remove("selected"));
+  document.querySelectorAll("#builder-picker .item").forEach(el => {
+    if (el.textContent.trim().startsWith(meta.name)) el.classList.add("selected");
+  });
+  document.getElementById("builder-picker").open = false;
+}
+
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
