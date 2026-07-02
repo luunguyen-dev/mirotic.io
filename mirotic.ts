@@ -325,46 +325,60 @@ async function callCodexAgent(prompt: string, cwd: string, jobId: string | undef
 /**
  * Try running an agentic session với auto-fallback qua registry.
  * Nếu model hit limit → parseRateLimitReset → markCooldown → thử next model.
- * Trả về { model, output }. Throw nếu tất cả model trong tier đều cooldown.
+ * @param preferModel  Nếu set (user pick manual), thử model đó ĐẦU TIÊN. Vẫn fallback nếu hit limit.
+ * Trả về { model, output }. Throw ALL_COOLDOWN nếu tất cả candidate cooldown.
  */
 async function runAgenticWithFallback(
   scope: string,                    // "implement" | "review" | "cso" | "qa" — cho log
   complexity: registry.ComplexityClass,
   prompt: string, cwd: string, jobId: string,
-  opts: { allowedTools?: string } = {},
+  opts: { allowedTools?: string; preferModel?: string } = {},
 ): Promise<{ model: string; output: string }> {
   const tried: string[] = [];
-  const MAX_ATTEMPTS = 3;
+  const MAX_ATTEMPTS = 4;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     let model: string;
-    try { model = await registry.pickModel("agentic", complexity); }
-    catch (e: any) {
-      // Tất cả cooldown → throw kèm earliest reset để caller requeue.
-      throw Object.assign(new Error(`[${scope}] all agentic models cooling down; earliest reset ${e.earliestReset}`),
-        { code: "ALL_COOLDOWN", earliestReset: e.earliestReset });
+    // Ưu tiên user pick ở attempt đầu — nếu còn khả dụng.
+    if (attempt === 0 && opts.preferModel && !tried.includes(opts.preferModel)) {
+      model = opts.preferModel;
+      // Nếu preferModel đang cooling, bỏ qua và pick theo priority.
+      const cds = registry.getCooldowns();
+      if (cds[model] && cds[model] > new Date().toISOString()) {
+        jLog(jobId, `[${scope}] user-pick ${model} đang cooldown → chuyển router`, "info");
+        model = "";
+      }
+    } else {
+      model = "";
+    }
+    if (!model) {
+      try { model = await registry.pickModel("agentic", complexity); }
+      catch (e: any) {
+        throw Object.assign(new Error(`[${scope}] all agentic models cooling down; earliest reset ${e.earliestReset}`),
+          { code: "ALL_COOLDOWN", earliestReset: e.earliestReset });
+      }
     }
     if (tried.includes(model)) {
-      // Router trả về cùng 1 model → đã hết fallback trong list.
+      // Router trả về cùng 1 model đã tried → không còn fallback.
       throw new Error(`[${scope}] router exhausted after trying ${tried.join(", ")}`);
     }
     tried.push(model);
     const est = registry.estimateCost(model);
-    jLog(jobId, `[${scope}] ${model} (${complexity}, est $${est.toFixed(3)})`);
+    const tag = opts.preferModel === model ? " (user pick)" : "";
+    jLog(jobId, `[${scope}] ${model}${tag} (${complexity}, est $${est.toFixed(3)})`);
     try {
       const output = await callClaudeCode(prompt, cwd, jobId, { model, allowedTools: opts.allowedTools });
       return { model, output };
     } catch (e: any) {
       const errMsg = String(e?.message ?? e);
-      // Đọc thêm 40 dòng log gần nhất để catch rate-limit message trong assistant text.
       const recent = await db.getLogs(jobId, 0, 500).catch(() => [] as any[]);
       const combined = errMsg + "\n" + recent.slice(-40).map((l: any) => l.line ?? "").join("\n");
       const resetAt = parseRateLimitReset(combined);
       if (resetAt) {
-        jLog(jobId, `[${scope}] ${model} HIT LIMIT — cooldown đến ${resetAt}, thử fallback…`, "error");
+        jLog(jobId, `[${scope}] ${model} HIT LIMIT — cooldown ${resetAt}, thử fallback…`, "error");
         await registry.markCooldown(model, resetAt, `${scope} session hit limit`);
-        continue;  // try next model
+        continue;
       }
-      // Non-rate-limit error → không fallback, propagate
+      // Non-rate-limit error → không fallback, propagate.
       throw e;
     }
   }
@@ -543,13 +557,9 @@ Nhiệm vụ:
 KHÔNG hỏi user — autonomous.`;
       await updatePlanStep(id, "scaffold", "in_progress");
       await updatePlanStep(id, "implement", "in_progress");
-      if (jobBuilderModel) {
-        // User pick manual → không auto-fallback (respect ý chí user)
-        jLog(id, `[implement] ${jobBuilderModel} (user pick, no auto-fallback)`);
-        await callClaudeCode(implementPrompt, cwd, id, { model: jobBuilderModel });
-      } else {
-        await runAgenticWithFallback("implement", complexity, implementPrompt, cwd, id);
-      }
+      // User pick vẫn được ưu tiên ĐẦU TIÊN, nhưng auto-fallback nếu hit limit.
+      await runAgenticWithFallback("implement", complexity, implementPrompt, cwd, id,
+        { preferModel: jobBuilderModel ?? undefined });
       await updatePlanStep(id, "scaffold", "done");
       await updatePlanStep(id, "implement", "done");
       await updatePlanStep(id, "github", "done");
