@@ -288,12 +288,10 @@ async function openDrawer(id) {
   if (j.status === "proposed") {
     // Model picker cho Builder — Approve URL sẽ include ?model=<key>.
     // "auto" (mặc định) = registry chọn theo complexity + cooldown, auto-fallback nếu hit limit.
-    const opts = Object.keys(bc.choices || {}).map(k => {
-      const label = k === "auto"
-        ? "auto — hệ thống quyết định (complexity + fallback)"
-        : `${k} — ${bc.choices[k]}`;
-      return `<option value="${escapeHtml(k)}" ${k === bc.default ? "selected" : ""}>${escapeHtml(label)}</option>`;
-    }).join("");
+    const labelOf = (k) => k.charAt(0).toUpperCase() + k.slice(1);   // auto → Auto, sonnet → Sonnet, opus → Opus
+    const opts = Object.keys(bc.choices || {}).map(k =>
+      `<option value="${escapeHtml(k)}" ${k === bc.default ? "selected" : ""}>${escapeHtml(labelOf(k))}</option>`
+    ).join("");
     builderPicker = `<div class="field"><label>Builder model</label>
       <select id="builder-model-select" onchange="selectedBuilderKey=this.value" style="width:100%;padding:6px;border-radius:5px;background:#1a1a1e;color:#ddd;border:1px solid #2a2a2e;font:inherit">${opts}</select>
     </div>`;
