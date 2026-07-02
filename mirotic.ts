@@ -30,7 +30,8 @@ const CONFIG = {
   hmacSecret: env("HMAC_SECRET", "change-me-in-prod"),
   morningAt: env("MORNING_AT", "07:00"),
   pollIntervalMin: Number(env("POLL_INTERVAL_MIN", "5")),
-  dailyBuildLimit: Number(env("DAILY_BUILD_LIMIT", "3")),
+  dailyBuildLimit: Number(env("DAILY_BUILD_LIMIT", "3")),  // giữ tên cũ, semantic đã đổi sang rolling 24h
+  buildWindowHours: Number(env("BUILD_WINDOW_HOURS", "24")),
   githubOwner: env("GITHUB_OWNER", "you"),
   awsHost: env("AWS_HOST", "your-ec2-host"),
   outbox: `${DATA_DIR}/outbox`,
@@ -675,16 +676,19 @@ async function pollOnce(): Promise<void> {
   while (d) { await deploy(d.id); d = await db.claimNextDeployRequested(); }
   // 2) Seed empty projects (LLM cần Claude auth — chỉ chạy trên worker Mac)
   try { await seedEmptyProjects(); } catch (e: any) { log(`(seedEmptyProjects err: ${e?.message ?? e})`); }
-  // 3) Build: tối đa DAILY_BUILD_LIMIT ý tưởng/ngày. Claim tuần tự đến khi hit gate hoặc hết approved.
+  // 3) Build: tối đa DAILY_BUILD_LIMIT ý tưởng trong rolling BUILD_WINDOW_HOURS (default 24h).
+  //    Claim tuần tự đến khi hit gate hoặc hết approved queue trong cùng cycle.
   while (true) {
-    const startedToday = await db.countStartedToday();
-    if (startedToday >= CONFIG.dailyBuildLimit) {
-      log(`⏭️  đã thực thi ${startedToday}/${CONFIG.dailyBuildLimit} ý tưởng hôm nay — chờ ngày mai`);
+    const inWindow = await db.countStartedRecent(CONFIG.buildWindowHours);
+    if (inWindow >= CONFIG.dailyBuildLimit) {
+      const oldest = await db.oldestStartedInWindow(CONFIG.buildWindowHours);
+      const nextSlot = oldest ? new Date(new Date(oldest).getTime() + CONFIG.buildWindowHours * 3600 * 1000).toISOString() : "?";
+      log(`⏭️  đã thực thi ${inWindow}/${CONFIG.dailyBuildLimit} trong ${CONFIG.buildWindowHours}h qua — slot tiếp theo mở lúc ${nextSlot}`);
       return;
     }
     const job = await db.claimNextApproved();
     if (!job) { log("⏳ chưa có ý tưởng status=approved"); return; }
-    log(`▶️  build ${startedToday + 1}/${CONFIG.dailyBuildLimit} hôm nay: ${job.id}`);
+    log(`▶️  build ${inWindow + 1}/${CONFIG.dailyBuildLimit} (rolling ${CONFIG.buildWindowHours}h): ${job.id}`);
     await runBuild(job.id);
   }
 }
@@ -924,7 +928,9 @@ function startServer() {
         const jobs = await db.listJobs(500);
         const detailed = await Promise.all(jobs.map((j) => db.getJob(j.id)));
         const all = detailed.filter(Boolean) as any[];
-        const startedToday = await db.countStartedToday();
+        const startedInWindow = await db.countStartedRecent(CONFIG.buildWindowHours);
+        const oldestInWindow = await db.oldestStartedInWindow(CONFIG.buildWindowHours);
+        // "Today" cho failed count vẫn giữ calendar-day để tương thích với thói quen.
         const todayPrefix = new Date().toISOString().slice(0, 10);
         const nowIso = new Date().toISOString();
         const counts = {
@@ -950,10 +956,14 @@ function startServer() {
         const next = new Date(nowD);
         next.setUTCHours(h - 7 < 0 ? h - 7 + 24 : h - 7, m, 0, 0);  // MORNING_AT = giờ VN, convert UTC (VN = UTC+7)
         if (next <= nowD) next.setUTCDate(next.getUTCDate() + 1);
+        const nextSlotAt = (startedInWindow >= CONFIG.dailyBuildLimit && oldestInWindow)
+          ? new Date(new Date(oldestInWindow).getTime() + CONFIG.buildWindowHours * 3600 * 1000).toISOString()
+          : null;
         return Response.json({
-          startedToday, dailyLimit: CONFIG.dailyBuildLimit,
+          startedInWindow, dailyLimit: CONFIG.dailyBuildLimit, buildWindowHours: CONFIG.buildWindowHours,
           counts, running,
           nextBatchAt: next.toISOString(),
+          nextSlotAt,             // khi nào 1 slot build mới mở (do rolling window)
           soonestRetryAt: soonestRetry,
           morningAt: CONFIG.morningAt,
           pollIntervalMin: CONFIG.pollIntervalMin,

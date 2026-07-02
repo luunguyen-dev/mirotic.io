@@ -99,7 +99,9 @@ interface Backend {
   setPlan(id: string, plan: any): Promise<void>;
   setBuilderModel(id: string, model: string): Promise<void>;
   requeueWithRetry(id: string, retryAfter: string, note: string): Promise<void>;   // reset status → approved, set retry_after
-  countStartedToday(): Promise<number>;
+  countStartedToday(): Promise<number>;                        // legacy calendar-day gate
+  countStartedRecent(hours: number): Promise<number>;          // rolling window (24h default)
+  oldestStartedInWindow(hours: number): Promise<string | null>; // ISO ts của build cũ nhất trong window (để compute next slot)
   claimNextApproved(): Promise<Job | null>;        // approved → building (+started_at)
   claimNextDeployRequested(): Promise<Job | null>; // deploy-requested → deploying
   // idea_pool
@@ -160,6 +162,16 @@ function pgBackend(url: string): Backend {
     async countStartedToday() {
       const r = await sql`SELECT count(*)::int AS n FROM jobs WHERE started_at IS NOT NULL AND left(started_at, 10) = ${today()}`;
       return r[0].n;
+    },
+    async countStartedRecent(hours) {
+      const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+      const r = await sql`SELECT count(*)::int AS n FROM jobs WHERE started_at IS NOT NULL AND started_at >= ${cutoff}`;
+      return r[0].n;
+    },
+    async oldestStartedInWindow(hours) {
+      const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+      const r = await sql`SELECT MIN(started_at) AS oldest FROM jobs WHERE started_at IS NOT NULL AND started_at >= ${cutoff}`;
+      return (r[0].oldest as string | null) ?? null;
     },
     async claimNextApproved() {
       const r = await sql`UPDATE jobs SET status = 'building', started_at = ${now()}
@@ -291,6 +303,16 @@ function sqliteBackend(): Backend {
       const r = db.query(`SELECT count(*) AS n FROM jobs WHERE started_at IS NOT NULL AND substr(started_at,1,10) = ?`).get(today()) as any;
       return r.n;
     },
+    async countStartedRecent(hours) {
+      const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+      const r = db.query(`SELECT count(*) AS n FROM jobs WHERE started_at IS NOT NULL AND started_at >= ?`).get(cutoff) as any;
+      return r.n;
+    },
+    async oldestStartedInWindow(hours) {
+      const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+      const r = db.query(`SELECT MIN(started_at) AS oldest FROM jobs WHERE started_at IS NOT NULL AND started_at >= ?`).get(cutoff) as any;
+      return r?.oldest ?? null;
+    },
     async claimNextApproved() {
       const r = db.query(`SELECT * FROM jobs WHERE status = 'approved' ORDER BY created_at LIMIT 1`).get() as any;
       if (!r) return null;
@@ -359,6 +381,8 @@ export const setPlan = (id: string, plan: any) => backend.setPlan(id, plan);
 export const setBuilderModel = (id: string, model: string) => backend.setBuilderModel(id, model);
 export const requeueWithRetry = (id: string, retryAfter: string, note: string) => backend.requeueWithRetry(id, retryAfter, note);
 export const countStartedToday = () => backend.countStartedToday();
+export const countStartedRecent = (hours: number) => backend.countStartedRecent(hours);
+export const oldestStartedInWindow = (hours: number) => backend.oldestStartedInWindow(hours);
 export const claimNextApproved = () => backend.claimNextApproved();
 export const claimNextDeployRequested = () => backend.claimNextDeployRequested();
 export const insertPoolItem = (item: Omit<PoolItem, "created_at" | "promoted">) => backend.insertPoolItem(item);

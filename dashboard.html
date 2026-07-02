@@ -152,10 +152,16 @@ async function renderStatusBar() {
   const bar = document.getElementById("running-bar");
   const s = await fetch("/api/status").then(r => r.json()).catch(() => null);
   if (!s) { bar.innerHTML = `<span class="none">không lấy được /api/status</span>`; return; }
-  const gateFull = s.startedToday >= s.dailyLimit;
+  const gateFull = s.startedInWindow >= s.dailyLimit;
   const c = s.counts;
   const stat = (kls, k, v) => `<span class="stat ${kls}"><span class="k">${k}</span><span class="v">${v}</span></span>`;
-  const gate = `<span class="stat gate ${gateFull ? "full" : ""}"><span class="k">gate hôm nay</span><span class="v">${s.startedToday}/${s.dailyLimit}</span></span>`;
+  const gate = `<span class="stat gate ${gateFull ? "full" : ""}"><span class="k">gate ${s.buildWindowHours || 24}h</span><span class="v">${s.startedInWindow}/${s.dailyLimit}</span></span>`;
+  // Nếu gate đầy, hiển thị next slot (khi 1 build cũ nhất thoát khỏi rolling window).
+  const nextSlotStat = s.nextSlotAt ? (() => {
+    const rel = Math.max(0, Math.floor((new Date(s.nextSlotAt).getTime() - Date.now()) / 60000));
+    const txt = rel < 60 ? `${rel}m` : `${Math.floor(rel/60)}h ${rel%60}m`;
+    return `<span class="stat attention"><span class="k">next slot</span><span class="v">${txt}</span></span>`;
+  })() : "";
   const queue = [
     stat(c.approved > 0 ? "attention" : "zero", "approved", c.approved),
     c.waitingRetry > 0 ? stat("attention", "rate-limited", c.waitingRetry) : "",
@@ -190,7 +196,7 @@ async function renderStatusBar() {
     ? `<span class="label">đang chạy</span>${pills.join("")}`
     : `<span class="none">không có executor nào đang xử lý</span>`;
 
-  bar.innerHTML = `${gate}<span class="sep"></span>${queue}<span class="sep"></span>${nextStat}${retryStat}${pollStat}<span class="sep"></span>${runningBlock}`;
+  bar.innerHTML = `${gate}${nextSlotStat}<span class="sep"></span>${queue}<span class="sep"></span>${nextStat}${retryStat}${pollStat}<span class="sep"></span>${runningBlock}`;
 }
 
 async function load() {
