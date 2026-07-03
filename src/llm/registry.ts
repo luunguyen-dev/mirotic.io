@@ -27,7 +27,7 @@ export const MODELS: Record<string, ModelMeta> = {
   "claude-sonnet-5":            { name: "claude-sonnet-5",             tier: "agentic", cost_in: 3,    cost_out: 15 },
   "claude-haiku-4-5-20251001":  { name: "claude-haiku-4-5-20251001",   tier: "text",    cost_in: 1,    cost_out: 5 },
   "gpt-5.5":                    { name: "gpt-5.5",                     tier: "agentic", cost_in: 10,   cost_out: 40 },
-  "gemini-3-flash-preview":             { name: "gemini-3-flash-preview",              tier: "text",    cost_in: 0.1,  cost_out: 0.4 },
+  "gemini-2.5-pro":             { name: "gemini-2.5-pro",              tier: "text",    cost_in: 0.1,  cost_out: 0.4 },
   "qwen3:8b":                   { name: "qwen3:8b",                    tier: "text",    cost_in: 0,    cost_out: 0 },
 };
 
@@ -42,9 +42,9 @@ export const AGENTIC_PRIORITY: Record<ComplexityClass, string[]> = {
 // TEXT — role-based. Gemini có REST khả dụng ở mọi env (kể cả dashboard container không có claude/codex CLI).
 // Ollama qwen3:8b luôn cuối cùng khi tất cả cloud fail.
 export const TEXT_PRIORITY: Record<TextRole, string[]> = {
-  gatherer: ["claude-opus-4-8", "gpt-5.5", "gemini-3-flash-preview", "qwen3:8b"],
-  ceo:      ["claude-opus-4-8", "gpt-5.5", "gemini-3-flash-preview", "qwen3:8b"],
-  planner:  ["gpt-5.5", "claude-sonnet-5", "gemini-3-flash-preview", "qwen3:8b"],
+  gatherer: ["claude-opus-4-8", "gpt-5.5", "gemini-2.5-pro", "qwen3:8b"],
+  ceo:      ["claude-opus-4-8", "gpt-5.5", "gemini-2.5-pro", "qwen3:8b"],
+  planner:  ["gpt-5.5", "claude-sonnet-5", "gemini-2.5-pro", "qwen3:8b"],
 };
 
 // In-memory cooldown cache — sync với DB periodic + on setCooldown.
