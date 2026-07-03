@@ -22,7 +22,7 @@ export const CONFIG = {
   builds: `${DATA_DIR}/builds`,
   useRealClaude: bool("USE_REAL_CLAUDE", false),
   // Model per role/skill — legacy env kept for BUILDER_CHOICES + text fallback.
-  modelGatherer: env("MODEL_GATHERER", "claude-haiku-4-5-20251001"),
+  modelPrototyper: env("MODEL_PROTOTYPER", env("MODEL_GATHERER", "claude-haiku-4-5-20251001")),
   modelCeo:      env("MODEL_CEO",      "claude-sonnet-4-6"),
   modelPlanner:  env("MODEL_PLANNER",  "claude-haiku-4-5-20251001"),
   modelBuilder:  env("MODEL_BUILDER",  "claude-sonnet-4-6"),

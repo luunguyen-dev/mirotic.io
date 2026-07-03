@@ -23,7 +23,7 @@ ENV_FILE=/tmp/.env.dashboard.$$
   echo "USE_REAL_OLLAMA=false"
   # Gemini REST — dashboard cần cho /api/ideas/manual (enrich raw input). Claude/Codex CLI không có trong container.
   echo "GEMINI_API_KEY=$(grep ^GEMINI_API_KEY= "$ROOT/.env" | cut -d= -f2-)"
-  echo "MODEL_GATHERER=gemini-2.5-pro"
+  echo "MODEL_PROTOTYPER=gemini-2.5-pro"
   echo "MODEL_CEO=gemini-2.5-pro"
 } > "$ENV_FILE"
 

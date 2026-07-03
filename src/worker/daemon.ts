@@ -32,7 +32,7 @@ export async function generateIdea(): Promise<string> {
 }
 
 // Batch (mode 'daemon' / 'worker' mỗi sáng):
-//   1) Prototyper enrich brief + score (LLM per role="gatherer")
+//   1) Prototyper enrich brief + score (LLM per role="prototyper")
 //   2) CEO review từng idea parallel → rating 1-5 + critique
 //   3) Sort rating desc → top-K → jobs(proposed), còn lại → idea_pool
 type Reviewed = ScoredIdea & { ceo_rating?: number; ceo_critique?: string };

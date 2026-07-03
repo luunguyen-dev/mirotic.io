@@ -3,7 +3,7 @@
  *
  * Concept:
  *   - AGENTIC tier: gstack sessions (IMPLEMENT/REVIEW/CSO/QA). Complexity-adaptive.
- *   - TEXT tier: 1-turn calls (Gatherer/CEO/Planner). Role-based.
+ *   - TEXT tier: 1-turn calls (Prototyper/CEO/Planner). Role-based.
  *   - Cooldown persist trong DB (model_cooldowns) → survive worker restart.
  */
 
@@ -11,7 +11,7 @@ import * as db from "../db";
 
 export type Tier = "agentic" | "text";
 export type ComplexityClass = "complex" | "medium" | "simple";
-export type TextRole = "gatherer" | "ceo" | "planner";
+export type TextRole = "prototyper" | "ceo" | "planner";
 
 export type ModelMeta = {
   name: string;
@@ -42,9 +42,9 @@ export const AGENTIC_PRIORITY: Record<ComplexityClass, string[]> = {
 // TEXT — role-based. Gemini có REST khả dụng ở mọi env (kể cả dashboard container không có claude/codex CLI).
 // Ollama qwen3:8b luôn cuối cùng khi tất cả cloud fail.
 export const TEXT_PRIORITY: Record<TextRole, string[]> = {
-  gatherer: ["claude-opus-4-8", "gpt-5.5", "gemini-2.5-pro", "qwen3:8b"],
-  ceo:      ["claude-opus-4-8", "gpt-5.5", "gemini-2.5-pro", "qwen3:8b"],
-  planner:  ["gpt-5.5", "claude-sonnet-5", "gemini-2.5-pro", "qwen3:8b"],
+  prototyper: ["claude-opus-4-8", "gpt-5.5", "gemini-2.5-pro", "qwen3:8b"],
+  ceo:        ["claude-opus-4-8", "gpt-5.5", "gemini-2.5-pro", "qwen3:8b"],
+  planner:    ["gpt-5.5", "claude-sonnet-5", "gemini-2.5-pro", "qwen3:8b"],
 };
 
 // In-memory cooldown cache — sync với DB periodic + on setCooldown.

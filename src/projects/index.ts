@@ -4,7 +4,7 @@
  * Flow:
  *   - promoteJobToProject(jobId): tạo project row (không seed issues — worker Mac có Claude auth sẽ seed sau).
  *   - seedEmptyProjects: worker poll pick project status=active + 0 issues → atomic claim → gọi LLM sinh issues.
- *   - seedProjectIssues: LLM (MODEL_GATHERER) sinh 5-8 issues song ngữ EN + VI.
+ *   - seedProjectIssues: LLM (MODEL_PROTOTYPER) sinh 5-8 issues song ngữ EN + VI.
  *
  * Atomic claim (status active → seeding → active) tránh race giữa 2 poll process.
  */
@@ -15,7 +15,7 @@ import { callLLM } from "../llm";
 import { log } from "../util/logger";
 import type { Idea } from "../types";
 
-// Sinh 5-8 issues khởi tạo từ idea brief. Dùng MODEL_GATHERER (creative synthesis).
+// Sinh 5-8 issues khởi tạo từ idea brief. Dùng MODEL_PROTOTYPER (creative synthesis).
 async function seedProjectIssues(projectId: string, idea: Idea): Promise<number> {
   const prompt = `Bạn đang lập backlog khởi đầu cho 1 dự án mới. Idea vừa được promote từ demo 1-day thành project long-term.
 
@@ -37,7 +37,7 @@ Trả JSON array only, không markdown:
 [{"type":"feature|bug|chore|spike|adr","priority":"p0|p1|p2|p3",
 "title_en":"...","title_vi":"...","description_en":"3-5 câu spec + acceptance criteria","description_vi":"..."},...]`;
   try {
-    const raw = await callLLM(CONFIG.modelGatherer, prompt, { num_predict: 16384, timeoutMs: 180_000 });
+    const raw = await callLLM(CONFIG.modelPrototyper, prompt, { num_predict: 16384, timeoutMs: 180_000 });
     const m = raw.match(/\[[\s\S]*\]/);
     if (!m) return 0;
     const items = JSON.parse(m[0]) as any[];
