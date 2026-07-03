@@ -28,15 +28,16 @@
   .card .top-row .rating { font-size: 11px; }
 
   /* Checklist */
-  .checklist { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
-  .checklist .step { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; padding: 4px 8px; border-radius: 4px; background: #131316; }
-  .checklist .step .icon { font-size: 14px; width: 16px; text-align: center; flex-shrink: 0; margin-top: 1px; }
-  .checklist .step.pending { color: #666; }
-  .checklist .step.in_progress { color: #e0d47b; background: #1f1b0a; }
-  .checklist .step.done { color: #a3d9a5; }
-  .checklist .step.failed { color: #e07b7b; background: #1f0f0f; }
-  .checklist .step .lbl-vi { display: block; color: #888; font-style: italic; font-size: 10px; margin-top: 1px; }
-  .checklist .step .note { display: block; font-size: 10px; color: #777; margin-top: 2px; }
+  .checklist { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+  .checklist .step { display: flex; align-items: flex-start; gap: 12px; font-size: 13px; padding: 10px 14px; border-radius: 5px; background: #131316; border-left: 3px solid transparent; }
+  .checklist .step .icon { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; margin-top: 1px; }
+  .checklist .step.pending { color: #777; border-left-color: #2a2a2e; }
+  .checklist .step.in_progress { color: #e0d47b; background: #1f1b0a; border-left-color: #e0d47b; box-shadow: 0 0 10px rgba(224,212,123,0.08); }
+  .checklist .step.done { color: #a3d9a5; border-left-color: #2d6e54; }
+  .checklist .step.failed { color: #e07b7b; background: #1f0f0f; border-left-color: #e07b7b; }
+  .checklist .step .lbl-vi { display: block; color: #888; font-style: italic; font-size: 11px; margin-top: 2px; }
+  .checklist .step .note { display: block; font-size: 11px; color: #999; margin-top: 4px; font-family: "SF Mono", Menlo, monospace; }
+  .checklist .step.failed .note { color: #e0a0a0; }
 
   /* Features chips */
   .features { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -53,16 +54,70 @@
   .card.failed { border-left: 3px solid #e07b7b; opacity: 0.65; }
   .card.rejected { border-left: 3px solid #666; opacity: 0.45; }
   /* Drawer detail */
-  .drawer { position: fixed; right: 0; top: 0; bottom: 0; width: 480px; max-width: 100vw; background: #0e0e10; border-left: 1px solid #2a2a2e; padding: 20px; overflow-y: auto; transform: translateX(100%); transition: transform 0.15s; z-index: 10; }
+  .drawer { position: fixed; right: 0; top: 0; bottom: 0; width: min(760px, 100vw); background: #0e0e10; border-left: 1px solid #2a2a2e; transform: translateX(100%); transition: transform 0.15s; z-index: 10; display: flex; flex-direction: column; }
   .drawer.open { transform: translateX(0); }
-  .drawer .close { position: absolute; top: 12px; right: 14px; background: none; border: none; color: #777; cursor: pointer; font-size: 18px; }
-  .drawer h3 { margin: 0 0 4px; font-size: 17px; font-weight: 500; padding-right: 30px; }
-  .drawer .sub { color: #888; font-size: 12px; margin-bottom: 16px; }
-  .drawer .field { margin-bottom: 14px; }
-  .drawer .field label { font-size: 11px; text-transform: uppercase; color: #666; letter-spacing: 0.06em; display: block; margin-bottom: 4px; }
+  .drawer .close { position: absolute; top: 14px; right: 16px; background: none; border: none; color: #777; cursor: pointer; font-size: 22px; z-index: 3; line-height: 1; }
+  .drawer .close:hover { color: #ddd; }
+
+  /* Header — always visible */
+  .drawer-header { padding: 20px 24px 14px; border-bottom: 1px solid #1c1c1f; flex-shrink: 0; }
+  .drawer-header h3 { margin: 0 0 2px; font-size: 20px; font-weight: 500; padding-right: 40px; letter-spacing: -0.01em; }
+  .drawer-header .title-vi { color: #888; font-style: italic; font-size: 14px; margin-bottom: 8px; }
+  .drawer-header .meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+  .drawer-header .id { font-family: "SF Mono", Menlo, monospace; font-size: 11px; color: #666; }
+  .drawer-header .status-badge { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; background: #1a1a1e; border: 1px solid #2a2a2e; color: #ddd; }
+  .drawer-header .status-badge.proposed { background: #2a2a30; color: #b8b8c8; border-color: #3a3a44; }
+  .drawer-header .status-badge.approved { background: #2a2f26; color: #a3d9a5; border-color: #3a5a44; }
+  .drawer-header .status-badge.building { background: #3a3220; color: #e0d47b; border-color: #5a4a2a; box-shadow: 0 0 12px rgba(224,212,123,0.15); }
+  .drawer-header .status-badge.deploying { background: #3a2438; color: #d67be0; border-color: #5a3a58; box-shadow: 0 0 12px rgba(214,123,224,0.15); }
+  .drawer-header .status-badge.demo-ready, .drawer-header .status-badge[class*="demo"] { background: #1e2f3f; color: #7ba8e0; border-color: #2d4a6a; }
+  .drawer-header .status-badge.deployed { background: #1e3a2c; color: #a3d9a5; border-color: #2d6e54; }
+  .drawer-header .status-badge.failed, .drawer-header .status-badge.rejected { background: #3a1e1e; color: #e07b7b; border-color: #6e2d2d; }
+  .drawer-header .stars { color: #e0d47b; font-size: 15px; letter-spacing: 2px; }
+  .drawer-header .builder-chip { font-size: 12px; color: #888; margin-left: auto; }
+
+  /* Tabs */
+  .drawer-tabs { display: flex; padding: 0 16px; border-bottom: 1px solid #1c1c1f; flex-shrink: 0; background: #0e0e10; }
+  .drawer-tabs .tab { padding: 10px 14px; font-size: 12px; color: #888; cursor: pointer; border-bottom: 2px solid transparent; user-select: none; transition: color 0.1s, border-color 0.1s; letter-spacing: 0.03em; }
+  .drawer-tabs .tab:hover { color: #ddd; }
+  .drawer-tabs .tab.active { color: #e8e8e8; border-bottom-color: #7ba8e0; }
+  .drawer-tabs .tab .badge { font-size: 10px; background: #4d1f1f; color: #e07b7b; padding: 1px 6px; border-radius: 8px; margin-left: 6px; font-weight: 600; }
+
+  /* Scrollable content area — panes hidden/shown */
+  .drawer-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+  .drawer-pane { display: none; }
+  .drawer-pane.active { display: block; }
+  .drawer-pane[data-pane="logs"].active { display: flex; flex-direction: column; height: 100%; }
+  .drawer-pane[data-pane="logs"] .log-tail { flex: 1; max-height: none !important; }
+
+  .drawer .field { margin-bottom: 16px; }
+  .drawer .field label { font-size: 10px; text-transform: uppercase; color: #666; letter-spacing: 0.08em; display: block; margin-bottom: 5px; font-weight: 600; }
+  .drawer .field .body-txt { color: #d8d8d8; font-size: 14px; line-height: 1.55; }
+  .drawer .field .body-vi { color: #888; font-style: italic; font-size: 13px; margin-top: 4px; line-height: 1.5; }
   .drawer pre { background: #07070a; border: 1px solid #1c1c1f; border-radius: 5px; padding: 10px; overflow: auto; font-size: 12px; color: #ccc; max-height: 240px; }
-  .drawer .actions { display: flex; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid #1c1c1f; }
-  .drawer .actions a { padding: 6px 12px; border-radius: 5px; text-decoration: none; font-size: 12px; font-weight: 500; border: 1px solid; cursor: pointer; user-select: none; }
+
+  /* CEO critique — highlighted */
+  .drawer .critique { background: linear-gradient(180deg, #1a1810 0%, #14140f 100%); border: 1px solid #3a3220; border-left: 3px solid #e0d47b; border-radius: 5px; padding: 14px 16px; margin-bottom: 18px; }
+  .drawer .critique .head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: #a89e6b; font-weight: 600; }
+  .drawer .critique .stars { color: #e0d47b; font-size: 13px; letter-spacing: 2px; }
+  .drawer .critique .en { color: #e8e4d0; font-size: 14px; line-height: 1.5; }
+  .drawer .critique .vi { color: #a89e88; font-style: italic; font-size: 13px; margin-top: 6px; line-height: 1.45; }
+
+  /* Result URLs — big & clickable */
+  .drawer .url-list .url-row { display: flex; align-items: baseline; gap: 12px; padding: 8px 12px; background: #0a0a0d; border: 1px solid #1c1c1f; border-radius: 5px; margin-bottom: 6px; }
+  .drawer .url-list .url-row .k { color: #666; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; min-width: 90px; font-weight: 600; }
+  .drawer .url-list .url-row a { color: #7ba8e0; font-size: 13px; text-decoration: none; word-break: break-all; flex: 1; }
+  .drawer .url-list .url-row a:hover { text-decoration: underline; }
+  .drawer .url-list .url-row .hint { color: #555; font-size: 10px; }
+
+  /* Error box */
+  .drawer .error-box { background: #2a1616; border: 1px solid #6e2d2d; border-left: 3px solid #e07b7b; border-radius: 5px; padding: 12px 14px; margin-bottom: 16px; }
+  .drawer .error-box .lbl { font-size: 10px; text-transform: uppercase; color: #e07b7b; font-weight: 600; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .drawer .error-box pre { background: transparent; border: none; padding: 0; margin: 0; color: #e0a0a0; font-size: 12px; }
+
+  /* Sticky action bar */
+  .drawer .actions { display: flex; gap: 8px; padding: 14px 24px; border-top: 1px solid #1c1c1f; background: #0e0e10; flex-shrink: 0; flex-wrap: wrap; }
+  .drawer .actions a { padding: 8px 14px; border-radius: 5px; text-decoration: none; font-size: 13px; font-weight: 500; border: 1px solid; cursor: pointer; user-select: none; }
   .drawer .actions a.primary { background: #1f4d39; border-color: #2d6e54; color: #a3d9a5; }
   .drawer .actions a.primary:hover { background: #2a6347; }
   .drawer .actions a.danger { background: #4d1f1f; border-color: #6e2d2d; color: #e07b7b; }
@@ -136,7 +191,7 @@
 <div class="board" id="board"></div>
 <div class="drawer" id="drawer">
   <button class="close" onclick="closeDrawer()">×</button>
-  <div id="drawer-content"></div>
+  <div id="drawer-content" style="display:flex;flex-direction:column;height:100%;overflow:hidden"></div>
 </div>
 
 <script>
@@ -379,8 +434,8 @@ async function openDrawer(id) {
   const whyEn = j.idea?.why_en || j.idea?.why || "";
   const whyVi = j.idea?.why_vi || j.idea?.why || "";
   const biField = (label, en, vi) => `<div class="field"><label>${label}</label>
-    <div>${escapeHtml(en || "—")}</div>
-    ${vi && vi !== en ? `<div style="color:#888;font-style:italic;margin-top:2px">${escapeHtml(vi)}</div>` : ""}
+    <div class="body-txt">${escapeHtml(en || "—")}</div>
+    ${vi && vi !== en ? `<div class="body-vi">${escapeHtml(vi)}</div>` : ""}
   </div>`;
   const stars = j.ceo_rating ? "★".repeat(j.ceo_rating) + "☆".repeat(5 - j.ceo_rating) : "";
   let critique = {};
@@ -394,37 +449,74 @@ async function openDrawer(id) {
   const targetBlock = j.idea?.target_user_en || j.idea?.target_user_vi ? biField("Target user", j.idea?.target_user_en, j.idea?.target_user_vi) : "";
   const whyNowBlock = j.idea?.why_now_en || j.idea?.why_now_vi ? biField("Why now", j.idea?.why_now_en, j.idea?.why_now_vi) : "";
   const riskBlock = j.idea?.risk_en || j.idea?.risk_vi ? biField("Risk", j.idea?.risk_en, j.idea?.risk_vi) : "";
-  const hoursBlock = j.idea?.demo_hours ? `<div class="field"><label>Demo hours</label><div>${escapeHtml(j.idea.demo_hours + "h")}</div></div>` : "";
+  const hoursBlock = j.idea?.demo_hours ? `<div class="field"><label>Demo hours</label><div class="body-txt">${escapeHtml(j.idea.demo_hours + "h")}</div></div>` : "";
 
   const stepIcon = { pending: "○", in_progress: "◐", done: "✓", failed: "✗" };
   const stepsBlock = j.plan?.steps?.length ? `<div class="field"><label>Progress checklist</label>
     <div class="checklist">${j.plan.steps.map(s => `<div class="step ${s.status}">
       <span class="icon">${stepIcon[s.status] || "○"}</span>
-      <div><span>${escapeHtml(s.label_en)}</span><span class="lbl-vi">${escapeHtml(s.label_vi)}</span>${s.note ? `<span class="note">${escapeHtml(s.note)}</span>` : ""}</div>
+      <div style="flex:1"><span>${escapeHtml(s.label_en)}</span><span class="lbl-vi">${escapeHtml(s.label_vi)}</span>${s.note ? `<span class="note">${escapeHtml(s.note)}</span>` : ""}</div>
     </div>`).join("")}</div></div>` : "";
 
+  const failedCount = (j.plan?.steps ?? []).filter(s => s.status === "failed").length;
+  const hasError = !!j.error_detail;
+  const progressBadge = (failedCount || hasError) ? `<span class="badge">${failedCount + (hasError ? 1 : 0)}</span>` : "";
+
+  const critiqueBlock = (critique.en || critique.vi) ? `<div class="critique">
+    <div class="head"><span>CEO Critique</span>${stars ? `<span class="stars">${stars}</span>` : ""}</div>
+    ${critique.en ? `<div class="en">${escapeHtml(critique.en)}</div>` : ""}
+    ${critique.vi ? `<div class="vi">${escapeHtml(critique.vi)}</div>` : ""}
+  </div>` : "";
+
+  const errorBlock = j.error_detail ? `<div class="error-box">
+    <div class="lbl">Error</div>
+    <pre>${escapeHtml(j.error_detail)}</pre>
+  </div>` : "";
+
+  const statusBadge = `<span class="status-badge ${escapeHtml(j.status)}">${escapeHtml(j.status)}</span>`;
+  const builderChip = builderInfo ? builderInfo.replace(/<div class="sub"[^>]*>/, '<span class="builder-chip">').replace(/<\/div>/, '</span>') : "";
+
   content.innerHTML = `
-    <h3>${escapeHtml(titleEn)}</h3>
-    ${titleVi && titleVi !== titleEn ? `<div style="color:#888;font-style:italic;font-size:13px;margin-top:-4px;margin-bottom:4px">${escapeHtml(titleVi)}</div>` : ""}
-    <div class="sub">${escapeHtml(j.id)} · status <b>${escapeHtml(j.status)}</b>${stars ? ` · <span style="color:#e0d47b">${stars}</span>` : ""}</div>
-    ${builderInfo}
-    ${critique.en || critique.vi ? `<div class="field"><label>CEO critique ${stars}</label>
-      <div>${escapeHtml(critique.en || "—")}</div>
-      ${critique.vi ? `<div style="color:#888;font-style:italic;margin-top:2px">${escapeHtml(critique.vi)}</div>` : ""}
-    </div>` : ""}
-    ${biField("Pitch", pitchEn, pitchVi)}
-    ${biField("Why", whyEn, whyVi)}
-    ${featBlock}
-    ${targetBlock}
-    ${whyNowBlock}
-    ${riskBlock}
-    ${hoursBlock}
-    <div class="field"><label>Type / Source</label><div>${escapeHtml(j.idea?.type || "?")} · ${escapeHtml(j.idea?.source || "?")}</div></div>
-    ${j.error_detail ? `<div class="field"><label>Error</label><pre style="color:#e07b7b">${escapeHtml(j.error_detail)}</pre></div>` : ""}
-    ${stepsBlock}
-    ${renderResult(j.result)}
-    <div class="field"><label>Logs</label><div class="log-tail" id="log-tail"><div class="log-empty">loading…</div></div></div>
-    ${builderPicker}
+    <div class="drawer-header">
+      <h3>${escapeHtml(titleEn)}</h3>
+      ${titleVi && titleVi !== titleEn ? `<div class="title-vi">${escapeHtml(titleVi)}</div>` : ""}
+      <div class="meta-row">
+        ${statusBadge}
+        ${stars ? `<span class="stars">${stars}</span>` : ""}
+        <span class="id">${escapeHtml(j.id)}</span>
+        ${builderChip}
+      </div>
+    </div>
+    <div class="drawer-tabs">
+      <div class="tab active" data-tab="overview" onclick="switchTab(this)">Overview</div>
+      <div class="tab" data-tab="idea" onclick="switchTab(this)">Idea</div>
+      <div class="tab" data-tab="progress" onclick="switchTab(this)">Progress${progressBadge}</div>
+      <div class="tab" data-tab="logs" onclick="switchTab(this)">Logs</div>
+    </div>
+    <div class="drawer-body">
+      <div class="drawer-pane active" data-pane="overview">
+        ${critiqueBlock}
+        ${biField("Pitch", pitchEn, pitchVi)}
+        <div class="field"><label>Type / Source</label><div class="body-txt">${escapeHtml(j.idea?.type || "?")} · ${escapeHtml(j.idea?.source || "?")}</div></div>
+        ${hoursBlock}
+        ${builderPicker}
+      </div>
+      <div class="drawer-pane" data-pane="idea">
+        ${biField("Why", whyEn, whyVi)}
+        ${featBlock}
+        ${targetBlock}
+        ${whyNowBlock}
+        ${riskBlock}
+      </div>
+      <div class="drawer-pane" data-pane="progress">
+        ${errorBlock}
+        ${renderResult(j.result)}
+        ${stepsBlock}
+      </div>
+      <div class="drawer-pane" data-pane="logs">
+        <div class="log-tail" id="log-tail" style="max-height:none;flex:1"><div class="log-empty">loading…</div></div>
+      </div>
+    </div>
     ${actions.length ? `<div class="actions">${actions.join("")}</div>` : ""}`;
   document.getElementById("drawer").classList.add("open");
   clearInterval(logPollTimer);
@@ -492,20 +584,27 @@ function renderResult(result) {
   if (!result) return "";
   const rows = [];
   const urlBits = [
-    ["Local URL", result.localUrl, "test docker local"],
-    ["Deployed URL", result.deployedUrl, "live production"],
+    ["Local", result.localUrl, "docker local"],
+    ["Deployed", result.deployedUrl, "live production"],
     ["Repo", result.repoUrl, "GitHub private"],
   ];
   for (const [label, url, hint] of urlBits) {
-    if (url) rows.push(`<div style="margin:2px 0">
-      <span style="color:#666;font-size:11px;display:inline-block;min-width:110px">${label}</span>
-      <a href="${escapeHtml(url)}" target="_blank" rel="noopener" style="color:#7ba8e0">${escapeHtml(url)}</a>
-      <span style="color:#555;font-size:10px;margin-left:8px">${hint}</span>
+    if (url) rows.push(`<div class="url-row">
+      <span class="k">${label}</span>
+      <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>
+      <span class="hint">${hint}</span>
     </div>`);
   }
-  if (result.publicPort) rows.push(`<div style="color:#666;font-size:11px">host port: ${result.publicPort}</div>`);
-  if (result.error) rows.push(`<div style="color:#e07b7b;font-size:12px;margin-top:4px">${escapeHtml(result.error)}</div>`);
-  return rows.length ? `<div class="field"><label>Result</label>${rows.join("")}</div>` : "";
+  if (result.publicPort) rows.push(`<div style="color:#666;font-size:11px;padding:4px 12px">host port: ${result.publicPort}</div>`);
+  if (result.error) rows.push(`<div style="color:#e07b7b;font-size:12px;margin-top:6px;padding:4px 12px">${escapeHtml(result.error)}</div>`);
+  return rows.length ? `<div class="field"><label>Result</label><div class="url-list">${rows.join("")}</div></div>` : "";
+}
+
+// Tab switcher for drawer — preserves log-tail element so polling doesn't restart.
+function switchTab(el) {
+  const wanted = el.dataset.tab;
+  el.parentElement.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t === el));
+  document.querySelectorAll(".drawer-pane").forEach(p => p.classList.toggle("active", p.dataset.pane === wanted));
 }
 
 function linkify(text) {
