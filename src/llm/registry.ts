@@ -40,11 +40,12 @@ export const AGENTIC_PRIORITY: Record<ComplexityClass, string[]> = {
   simple:  ["gpt-5.5", "claude-sonnet-5"],
 };
 
-// TEXT — role-based. Ollama qwen3:8b luôn cuối cùng khi tất cả cloud fail.
+// TEXT — role-based. Gemini có REST khả dụng ở mọi env (kể cả dashboard container không có claude/codex CLI).
+// Ollama qwen3:8b luôn cuối cùng khi tất cả cloud fail.
 export const TEXT_PRIORITY: Record<TextRole, string[]> = {
-  gatherer: ["claude-opus-4-8", "claude-sonnet-5", "gpt-5.5", "qwen3:8b"],
-  ceo:      ["claude-opus-4-8", "claude-sonnet-5", "gpt-5.5", "qwen3:8b"],
-  planner:  ["gpt-5.5", "claude-sonnet-5", "claude-opus-4-8", "qwen3:8b"],
+  gatherer: ["claude-opus-4-8", "claude-sonnet-5", "gpt-5.5", "gemini-2.5-pro", "qwen3:8b"],
+  ceo:      ["claude-opus-4-8", "claude-sonnet-5", "gpt-5.5", "gemini-2.5-pro", "qwen3:8b"],
+  planner:  ["gpt-5.5", "claude-sonnet-5", "claude-opus-4-8", "gemini-2.5-pro", "qwen3:8b"],
 };
 
 // In-memory cooldown cache — sync với DB periodic + on setCooldown.
@@ -75,17 +76,19 @@ function isAvailable(model: string): boolean {
  * @param hint complexity (agentic) hoặc role (text)
  * @returns model name; throw nếu tất cả đều cooldown
  */
-export async function pickModel(tier: Tier, hint: ComplexityClass | TextRole): Promise<string> {
+export async function pickModel(tier: Tier, hint: ComplexityClass | TextRole, opts: { exclude?: string[] } = {}): Promise<string> {
   await loadCooldowns();
   const priority = tier === "agentic"
     ? AGENTIC_PRIORITY[hint as ComplexityClass]
     : TEXT_PRIORITY[hint as TextRole];
   if (!priority) throw new Error(`unknown hint '${hint}' for tier '${tier}'`);
+  const excluded = new Set(opts.exclude ?? []);
   for (const model of priority) {
+    if (excluded.has(model)) continue;
     if (isAvailable(model)) return model;
   }
-  // Tất cả cooldown → tính earliest reset
   const earliestReset = priority
+    .filter(m => !excluded.has(m))
     .map(m => cooldowns[m])
     .filter(Boolean)
     .sort()[0] ?? new Date(Date.now() + 3600_000).toISOString();

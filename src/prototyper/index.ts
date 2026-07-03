@@ -145,11 +145,10 @@ const callLLMForGather = async (prompt: string, opts: { num_predict?: number } =
   const tried: string[] = [];
   for (let attempt = 0; attempt < 4; attempt++) {
     let model: string;
-    try { model = await registry.pickModel("text", "gatherer"); }
+    try { model = await registry.pickModel("text", "gatherer", { exclude: tried }); }
     catch (e: any) {
-      throw new Error(`Gatherer: all text models cooling down; earliest reset ${e.earliestReset}`);
+      throw new Error(`Gatherer: all text models cooling down or exhausted; earliest reset ${e.earliestReset}`);
     }
-    if (tried.includes(model)) throw new Error(`Gatherer: router exhausted (tried ${tried.join(", ")})`);
     tried.push(model);
     try {
       const out = await callLLM(model, prompt, {
@@ -161,12 +160,13 @@ const callLLMForGather = async (prompt: string, opts: { num_predict?: number } =
     } catch (e: any) {
       log(`   ✗ Gatherer ${model}: ${e?.message?.slice(0, 100) ?? e}, thử fallback`);
       const errMsg = String(e?.message ?? e);
-      // Nếu là rate-limit signal → mark cooldown (parseRateLimitReset không import ở đây, dùng regex đơn giản)
       const m = errMsg.match(/reset(?:s| at)?\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
       if (m || /session limit|usage limit|429|rate.?limit/i.test(errMsg)) {
-        // Đơn giản: đánh dấu cooldown 1h
+        // Chỉ mark cooldown khi thực sự rate-limit — cooldown chia sẻ DB giữa worker/container.
         await registry.markCooldown(model, new Date(Date.now() + 3600_000).toISOString(), "gatherer hit limit");
       }
+      // Runtime CLI thiếu (container không có claude/codex) — không mark cooldown (worker vẫn dùng được),
+      // chỉ ghi tried[] để loop lấy model kế tiếp qua opts.exclude.
     }
   }
   throw new Error(`Gatherer: exhausted after ${tried.join(", ")}`);
@@ -349,6 +349,85 @@ Cần song ngữ (EN + VI). Chỉ trả về JSON, không gì khác:
     why_vi: `Đang trending trên ${top.source}; khớp ngách của bạn.`,
     title_en: rawTitle, pitch_en: top.summary,
     why_en: `Trending on ${top.source}; matches your niche.`,
+  };
+}
+
+/**
+ * expandUserIdea — user nhập keyword ngắn hoặc description dài, LLM
+ * enrich thành ScoredIdea đầy đủ (title EN/VI, pitch, features, target...).
+ * Dùng cho manual submit — bypass HN/GitHub sourcing.
+ * source = "manual: <input snippet>".
+ */
+export async function expandUserIdea(input: string): Promise<ScoredIdea> {
+  const trimmed = input.trim();
+  const isKeyword = trimmed.length < 60 && !/[.!?\n]/.test(trimmed);
+  const mode = isKeyword ? "keyword" : "description";
+  const sourceTag = `manual: ${trimmed.slice(0, 60)}${trimmed.length > 60 ? "…" : ""}`;
+
+  if (useLLMEnrich) {
+    const prompt = `Bạn là "Prototyper". User tự đề xuất 1 ý tưởng ${mode === "keyword" ? "dưới dạng keyword ngắn" : "kèm mô tả cụ thể"}:
+
+"${trimmed}"
+
+Nhiệm vụ: enrich thành 1 idea GỐC đầy đủ. Nếu user chỉ cho keyword, tự sáng tạo product cụ thể xoay quanh keyword đó. Nếu user đã có description, giữ ý user và cấu trúc lại theo schema.
+
+TIÊU CHÍ (giữ nguyên chất lượng như batch):
+- title là tên product CỤ THỂ, không generic.
+- Có góc riêng vs. tool cùng lĩnh vực.
+- Buildable 1 ngày (2-24h).
+- Target user cụ thể.
+- Song ngữ EN + VI.
+
+Trả JSON object, không markdown, không giải thích:
+{"title_en":"...","title_vi":"...","slug":"kebab-case","type":"web-frontend|full-stack|cli|browser-extension",
+"pitch_en":"1 câu tagline","pitch_vi":"...",
+"features_en":["3-5 bullet feature core"],"features_vi":["..."],
+"target_user_en":"1 câu ai dùng","target_user_vi":"...",
+"why_now_en":"1 câu vì sao lúc này","why_now_vi":"...",
+"risk_en":"1 câu rủi ro/giả định lớn nhất","risk_vi":"...",
+"demo_hours":6}`;
+    try {
+      const raw = await callLLMForGather(prompt, { num_predict: 8192 });
+      const it = extractJson(raw);
+      const titleEn = String(it.title_en ?? it.title ?? trimmed);
+      const t: ProjectType = (["web-frontend", "full-stack", "cli", "browser-extension"].includes(it.type)
+        ? it.type : "web-frontend") as ProjectType;
+      log(`   ✓ Prototyper enrich manual idea "${titleEn}" (mode: ${mode})`);
+      return {
+        title: titleEn,
+        slug: slugify(String(it.slug ?? titleEn)),
+        type: t,
+        pitch: String(it.pitch_en ?? ""),
+        why: String(it.why_now_vi ?? it.why_now_en ?? "User đề xuất trực tiếp."),
+        source: sourceTag,
+        score: 0.8,   // user-submitted → boost điểm lên nhẹ, CEO review vẫn quyết
+        title_en: titleEn, title_vi: String(it.title_vi ?? titleEn),
+        pitch_en: String(it.pitch_en ?? ""), pitch_vi: String(it.pitch_vi ?? ""),
+        why_en: String(it.why_now_en ?? ""), why_vi: String(it.why_now_vi ?? ""),
+        features_en: Array.isArray(it.features_en) ? it.features_en.slice(0, 5).map(String) : undefined,
+        features_vi: Array.isArray(it.features_vi) ? it.features_vi.slice(0, 5).map(String) : undefined,
+        target_user_en: it.target_user_en ? String(it.target_user_en) : undefined,
+        target_user_vi: it.target_user_vi ? String(it.target_user_vi) : undefined,
+        why_now_en: it.why_now_en ? String(it.why_now_en) : undefined,
+        why_now_vi: it.why_now_vi ? String(it.why_now_vi) : undefined,
+        risk_en: it.risk_en ? String(it.risk_en) : undefined,
+        risk_vi: it.risk_vi ? String(it.risk_vi) : undefined,
+        demo_hours: typeof it.demo_hours === "number" ? Math.max(1, Math.min(24, Math.round(it.demo_hours))) : undefined,
+      };
+    } catch (e: any) {
+      log(`   ✗ expandUserIdea LLM lỗi: ${e?.message ?? e} → raw fallback`);
+    }
+  }
+
+  // Fallback (LLM off / lỗi): dùng nguyên input làm title + pitch.
+  const rawTitle = trimmed.split(/[.!?\n]/)[0].slice(0, 60) || "Untitled";
+  return {
+    title: rawTitle, slug: slugify(rawTitle), type: "web-frontend",
+    pitch: trimmed.slice(0, 200), why: "User đề xuất trực tiếp.",
+    source: sourceTag, score: 0.5,
+    title_en: rawTitle, title_vi: rawTitle,
+    pitch_en: trimmed.slice(0, 200), pitch_vi: trimmed.slice(0, 200),
+    why_en: "Direct user submission.", why_vi: "User đề xuất trực tiếp.",
   };
 }
 

@@ -178,6 +178,23 @@
   .running-bar .pill .elapsed { color: #888; font-variant-numeric: tabular-nums; font-size: 11px; }
   .running-bar .none { color: #555; font-style: italic; font-size: 11px; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  /* Manual idea modal */
+  .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 50; align-items: center; justify-content: center; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: #0e0e10; border: 1px solid #2a2a2e; border-radius: 8px; width: min(560px, 92vw); padding: 24px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
+  .modal h3 { margin: 0 0 6px; font-size: 18px; font-weight: 500; }
+  .modal .hint { color: #888; font-size: 12px; line-height: 1.5; margin-bottom: 14px; }
+  .modal textarea { width: 100%; box-sizing: border-box; background: #050508; border: 1px solid #2a2a2e; color: #ddd; border-radius: 5px; padding: 10px 12px; font: inherit; font-size: 13px; line-height: 1.5; resize: vertical; min-height: 100px; }
+  .modal textarea:focus { outline: none; border-color: #7ba8e0; }
+  .modal .row { display: flex; gap: 8px; align-items: center; margin-top: 14px; }
+  .modal .status { color: #888; font-size: 12px; }
+  .modal .status.error { color: #e07b7b; }
+  .modal .status.ok { color: #a3d9a5; }
+  .modal button { padding: 7px 14px; border-radius: 5px; border: 1px solid #2a2a2e; background: #1c1c1f; color: #ddd; cursor: pointer; font-size: 13px; }
+  .modal button.primary { background: #1f4d39; border-color: #2d6e54; color: #a3d9a5; }
+  .modal button.primary:hover:not(:disabled) { background: #2a6347; }
+  .modal button:disabled { opacity: 0.5; cursor: default; }
 </style>
 </head>
 <body>
@@ -188,8 +205,23 @@
   <a href="/projects" style="color:#7ba8e0;font-size:13px;text-decoration:none;padding:4px 10px;border-radius:5px;background:#1c1c1f;border:1px solid #2a2a2e">📂 Projects</a>
   <span class="meta" id="meta">loading…</span>
   <span style="flex:1"></span>
+  <button onclick="openManualModal()" style="background:#1f4d39;border:1px solid #2d6e54;color:#a3d9a5">+ new idea</button>
   <button onclick="load()">↻ refresh</button>
 </header>
+
+<div class="modal-backdrop" id="manual-backdrop" onclick="if(event.target===this)closeManualModal()">
+  <div class="modal">
+    <h3>New idea</h3>
+    <div class="hint">Nhập keyword ngắn ("realtime pgsql metrics") hoặc mô tả đầy đủ. Prototyper sẽ enrich thành ý tưởng đầy đủ, CEO review, xuất hiện ở cột Proposed.</div>
+    <textarea id="manual-input" rows="6" placeholder="ví dụ: CLI để diff 2 file yaml, giữ nguyên comment&#10;hoặc: realtime dashboard cho pgsql slow queries — target là DBA đang debug prod"></textarea>
+    <div class="row">
+      <span id="manual-status" class="status"></span>
+      <span style="flex:1"></span>
+      <button onclick="closeManualModal()">Cancel</button>
+      <button id="manual-submit" class="primary" onclick="submitManual()">Submit</button>
+    </div>
+  </div>
+</div>
 
 <div class="running-bar" id="running-bar"></div>
 
@@ -662,8 +694,46 @@ function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
+// Manual idea modal ──────────────────────────────
+function openManualModal() {
+  document.getElementById("manual-backdrop").classList.add("open");
+  document.getElementById("manual-status").textContent = "";
+  document.getElementById("manual-status").className = "status";
+  document.getElementById("manual-submit").disabled = false;
+  setTimeout(() => document.getElementById("manual-input").focus(), 50);
+}
+function closeManualModal() {
+  document.getElementById("manual-backdrop").classList.remove("open");
+}
+async function submitManual() {
+  const inp = document.getElementById("manual-input");
+  const status = document.getElementById("manual-status");
+  const btn = document.getElementById("manual-submit");
+  const input = inp.value.trim();
+  if (input.length < 3) { status.textContent = "cần >= 3 ký tự"; status.className = "status error"; return; }
+  btn.disabled = true;
+  status.textContent = "Prototyper đang enrich…";
+  status.className = "status";
+  try {
+    const r = await fetch("/api/ideas/manual", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ input }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    status.textContent = `✓ Đã thêm "${j.title}". CEO đang review nền…`;
+    status.className = "status ok";
+    inp.value = "";
+    load();
+    setTimeout(closeManualModal, 1200);
+  } catch (e) {
+    status.textContent = "✗ " + (e.message || e);
+    status.className = "status error";
+    btn.disabled = false;
+  }
+}
+
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
+  const modal = document.getElementById("manual-backdrop");
+  if (modal.classList.contains("open")) return closeManualModal();
   // ESC: đóng drawer trước, nếu không mở thì clear filter.
   if (document.getElementById("drawer").classList.contains("open")) return closeDrawer();
   if (filterStatus) { filterStatus = null; load(); }

@@ -11,6 +11,9 @@ import { CONFIG } from "../config";
 import * as db from "../db";
 import * as registry from "../llm/registry";
 import { promoteJobToProject } from "../projects";
+import { expandUserIdea } from "../prototyper";
+import { ceoReview } from "../executor/ceo";
+import { makePlan } from "../executor/planner";
 import {
   sign, verify, jobSigns,
   ACTIONS, PROMOTE_ACTION, RETRY_ACTION, CANCEL_ACTION, BUILDER_CHOICES, BUILDER_DEFAULT,
@@ -78,6 +81,26 @@ export async function handleFetch(req: Request): Promise<Response> {
     return Response.json({ ...job, signs: jobSigns(job.id), auto_recommended });
   }
   if (path === "/api/pool") return Response.json(await db.listPool(100));
+  // POST /api/ideas/manual — user nhập keyword/description, Prototyper enrich + CEO review + insert.
+  // Body: { input: string }
+  if (path === "/api/ideas/manual" && req.method === "POST") {
+    const body = await req.json().catch(() => null) as { input?: string } | null;
+    const input = body?.input?.trim();
+    if (!input || input.length < 3) return Response.json({ error: "input phải >= 3 ký tự" }, { status: 400 });
+    if (input.length > 4000) return Response.json({ error: "input tối đa 4000 ký tự" }, { status: 400 });
+    try {
+      const idea = await expandUserIdea(input);
+      const plan = await makePlan(idea);
+      const id = await db.insertJob(idea, plan);
+      // CEO review async — không block response; user sẽ thấy rating xuất hiện sau vài giây.
+      ceoReview(idea).then(async (r) => {
+        if (r) await db.setCeoReview(id, r.rating, JSON.stringify(r.critique));
+      }).catch(() => {});
+      return Response.json({ ok: true, id, title: idea.title, slug: idea.slug });
+    } catch (e: any) {
+      return Response.json({ error: String(e?.message ?? e) }, { status: 500 });
+    }
+  }
   if (path === "/api/builder-choices") {
     return Response.json({ choices: BUILDER_CHOICES, default: BUILDER_DEFAULT });
   }
