@@ -539,6 +539,15 @@ function escapeHtml(s) {
 }
 
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+// Click outside drawer đóng drawer để card khác click được.
+// Bỏ qua click trên card/pill — chúng tự openDrawer với id mới.
+document.addEventListener("click", e => {
+  const drawer = document.getElementById("drawer");
+  if (!drawer.classList.contains("open")) return;
+  if (drawer.contains(e.target)) return;
+  if (e.target.closest(".card, .pill")) return;
+  closeDrawer();
+});
 load();
 setInterval(load, 15_000);
 // Tick mỗi 1s để elapsed time của job đang chạy cập nhật mượt (không gọi API)
