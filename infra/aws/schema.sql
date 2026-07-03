@@ -18,6 +18,8 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS ceo_critique   TEXT;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS builder_model      TEXT;  -- user pick trước Approve (null = auto → registry route)
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS builder_model_used TEXT;  -- model thực sự dùng trong IMPLEMENT (auto-resolved từ registry)
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS retry_after        TEXT;  -- ISO ts; approved job bị skip đến khi qua mốc (rate-limit reset)
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS total_cost_usd     DOUBLE PRECISION;  -- USD Claude CLI report cộng dồn qua 4 gstack sessions
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS total_turns        INTEGER;           -- turns cộng dồn qua 4 gstack sessions
 CREATE INDEX IF NOT EXISTS jobs_status_rating_idx ON jobs (status, ceo_rating DESC);
 CREATE INDEX IF NOT EXISTS jobs_status_idx  ON jobs (status);
 CREATE INDEX IF NOT EXISTS jobs_created_idx ON jobs (created_at DESC);

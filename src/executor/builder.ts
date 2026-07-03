@@ -144,6 +144,10 @@ async function parseClaudeEventToLog(line: string, jobId: string) {
   } else if (ev.type === "result") {
     const cost = ev.total_cost_usd ? `$${ev.total_cost_usd.toFixed(4)}` : "";
     await db.appendLog(jobId, `${ev.is_error ? "❌" : "✓"} ${ev.num_turns ?? 0} turns · ${cost}`.trim(), "summary");
+    // Aggregate lên jobs.total_turns + total_cost_usd cho card summary.
+    const turns = Number(ev.num_turns ?? 0);
+    const usd = Number(ev.total_cost_usd ?? 0);
+    if (turns > 0 || usd > 0) await db.addJobCost(jobId, turns, usd);
   }
 }
 

@@ -30,6 +30,8 @@ export type Job = {
   builder_model: string | null;      // user pick trước Approve; null = auto
   builder_model_used: string | null; // model thực sự dùng (auto-resolved từ registry sau IMPLEMENT)
   retry_after: string | null;        // ISO ts; approved job bị skip đến khi qua mốc (rate-limit reset)
+  total_cost_usd: number | null;     // tổng USD Claude CLI report từ mọi session (implement + review + cso + qa)
+  total_turns: number | null;        // tổng số conversation turn từ mọi session
 };
 
 const SCHEMA = `CREATE TABLE IF NOT EXISTS jobs (
@@ -54,6 +56,8 @@ function parse(r: any): Job {
     builder_model: r.builder_model ?? null,
     builder_model_used: r.builder_model_used ?? null,
     retry_after: r.retry_after ?? null,
+    total_cost_usd: r.total_cost_usd != null ? Number(r.total_cost_usd) : null,
+    total_turns: r.total_turns != null ? Number(r.total_turns) : null,
   };
 }
 
@@ -102,6 +106,7 @@ interface Backend {
   setPlan(id: string, plan: any): Promise<void>;
   setBuilderModel(id: string, model: string): Promise<void>;
   setBuilderModelUsed(id: string, model: string): Promise<void>;
+  addJobCost(id: string, turns: number, costUsd: number): Promise<void>;
   requeueWithRetry(id: string, retryAfter: string, note: string): Promise<void>;   // reset status → approved, set retry_after
   // model cooldowns
   listCooldowns(): Promise<ModelCooldown[]>;
@@ -138,7 +143,14 @@ const jobId = (idea: Idea) => `${today()}-${idea.slug}`;
 function pgBackend(url: string): Backend {
   const sql = new SQL(url);
   return {
-    async init() { await sql.unsafe(SCHEMA); },
+    async init() {
+      await sql.unsafe(SCHEMA);
+      // Idempotent column migrations (khớp infra/aws/schema.sql).
+      await sql.unsafe(`
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS total_cost_usd DOUBLE PRECISION;
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS total_turns INTEGER;
+      `);
+    },
     async insertJob(idea, plan) {
       const id = jobId(idea);
       const row = { id, created_at: now(), status: "proposed", idea_json: JSON.stringify(idea), plan_json: JSON.stringify(plan) };
@@ -165,6 +177,12 @@ function pgBackend(url: string): Backend {
     },
     async setBuilderModelUsed(id, model) {
       await sql`UPDATE jobs SET builder_model_used = ${model} WHERE id = ${id}`;
+    },
+    async addJobCost(id, turns, costUsd) {
+      await sql`UPDATE jobs SET
+        total_turns    = COALESCE(total_turns, 0) + ${turns},
+        total_cost_usd = COALESCE(total_cost_usd, 0) + ${costUsd}
+        WHERE id = ${id}`;
     },
     async requeueWithRetry(id, retryAfter, note) {
       await sql`UPDATE jobs SET status = 'approved', started_at = NULL,
@@ -322,6 +340,14 @@ function sqliteBackend(): Backend {
       try { db.run(`ALTER TABLE jobs ADD COLUMN builder_model_used TEXT`); } catch {}
       db.run(`UPDATE jobs SET builder_model_used = ? WHERE id = ?`, [model, id]);
     },
+    async addJobCost(id, turns, costUsd) {
+      try { db.run(`ALTER TABLE jobs ADD COLUMN total_cost_usd REAL`); } catch {}
+      try { db.run(`ALTER TABLE jobs ADD COLUMN total_turns INTEGER`); } catch {}
+      db.run(`UPDATE jobs SET
+        total_turns    = COALESCE(total_turns, 0) + ?,
+        total_cost_usd = COALESCE(total_cost_usd, 0) + ?
+        WHERE id = ?`, [turns, costUsd, id]);
+    },
     async requeueWithRetry(id, retryAfter, note) {
       try { db.run(`ALTER TABLE jobs ADD COLUMN retry_after TEXT`); } catch {}
       db.run(`UPDATE jobs SET status='approved', started_at=NULL, retry_after=?, error_detail=? WHERE id=?`,
@@ -411,6 +437,7 @@ export const setCeoReview = (id: string, rating: number, critique: string) => ba
 export const setPlan = (id: string, plan: any) => backend.setPlan(id, plan);
 export const setBuilderModel = (id: string, model: string) => backend.setBuilderModel(id, model);
 export const setBuilderModelUsed = (id: string, model: string) => backend.setBuilderModelUsed(id, model);
+export const addJobCost = (id: string, turns: number, costUsd: number) => backend.addJobCost(id, turns, costUsd);
 export const requeueWithRetry = (id: string, retryAfter: string, note: string) => backend.requeueWithRetry(id, retryAfter, note);
 export const listCooldowns = () => backend.listCooldowns();
 export const setModelCooldown = (m: string, until: string, reason: string) => backend.setModelCooldown(m, until, reason);
