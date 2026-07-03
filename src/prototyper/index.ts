@@ -20,7 +20,7 @@ const bool = (k: string, d = false) => (process.env[k] ?? String(d)) === "true";
 
 const CFG = {
   niches: env("NICHES", "developer tools,productivity,AI/LLM apps,data viz").split(",").map((s) => s.trim()),
-  prototyperModel: env("MODEL_PROTOTYPER", env("MODEL_GATHERER", env("OLLAMA_MODEL", "claude-haiku-4-5-20251001"))),
+  prototyperModel: env("MODEL_PROTOTYPER", env("OLLAMA_MODEL", "claude-sonnet-5")),
   // Ollama vẫn cần USE_REAL_OLLAMA để bật; Claude tự bật (auth qua Max/API key).
   useRealOllama: bool("USE_REAL_OLLAMA", false),
   backlogDir: env("BACKLOG_DIR", "./backlog"),
