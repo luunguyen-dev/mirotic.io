@@ -298,7 +298,7 @@ function toggleFilter(status) {
 
 async function load() {
   const jobs = await fetch("/api/jobs").then(r => r.json());
-  document.getElementById("meta").textContent = `${jobs.length} jobs · refreshed ${new Date().toLocaleTimeString()}`;
+  document.getElementById("meta").textContent = `${jobs.length} jobs · refreshed ${new Date().toLocaleTimeString("en-GB", { hour12: false })}`;
   renderStatusBar();
   const board = document.getElementById("board");
   board.innerHTML = "";
