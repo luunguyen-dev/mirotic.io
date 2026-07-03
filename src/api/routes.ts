@@ -162,9 +162,6 @@ export async function handleFetch(req: Request): Promise<Response> {
     const cooldownCount = Object.keys(cds).filter((mm) => cds[mm] > new Date().toISOString()).length;
     const soonestCooldownReset = Object.values(cds).filter((v) => v > new Date().toISOString()).sort()[0] ?? null;
 
-    // Tổng cost + turns cộng dồn từ đầu (mọi job đã / đang chạy).
-    const totalCostUsd = all.reduce((s, j) => s + (j.total_cost_usd ?? 0), 0);
-    const totalTurns   = all.reduce((s, j) => s + (j.total_turns ?? 0), 0);
     return Response.json({
       startedInWindow, dailyLimit: CONFIG.dailyBuildLimit, buildWindowHours: CONFIG.buildWindowHours,
       counts, running,
@@ -175,7 +172,6 @@ export async function handleFetch(req: Request): Promise<Response> {
       soonestModelReset: soonestCooldownReset,
       morningAt: CONFIG.morningAt,
       pollIntervalMin: CONFIG.pollIntervalMin,
-      totalCostUsd, totalTurns,
     });
   }
   // P1 — projects + issues API
