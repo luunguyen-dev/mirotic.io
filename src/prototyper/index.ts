@@ -19,7 +19,7 @@ const env = (k: string, d = "") => process.env[k] ?? d;
 const bool = (k: string, d = false) => (process.env[k] ?? String(d)) === "true";
 
 const CFG = {
-  niches: env("NICHES", "developer tools,productivity,AI/LLM apps,data viz").split(",").map((s) => s.trim()),
+  niches: env("NICHES", "developer tools,productivity,AI/LLM apps,data viz,everyday life,personal finance,health & sleep,cooking & groceries,commuting & travel,family & relationships").split(",").map((s) => s.trim()),
   prototyperModel: env("MODEL_PROTOTYPER", env("OLLAMA_MODEL", "claude-sonnet-5")),
   // Ollama vẫn cần USE_REAL_OLLAMA để bật; Claude tự bật (auth qua Max/API key).
   useRealOllama: bool("USE_REAL_OLLAMA", false),
@@ -227,15 +227,19 @@ ${inspirations.map((c, i) => `${i + 1}. [${c.source}] ${c.title} — ${c.summary
 Nhiệm vụ: sinh ra ${n} idea GỐC. Có thể:
 - Lấy 1 signal, reframe / kết hợp / đối lập / thu hẹp scope xuống 1 ngách
 - Nhìn signal, thấy "pain thực" đằng sau, đề xuất tool nhỏ giải cứu
+- Quan sát trực tiếp cuộc sống hằng ngày (nội trợ, đi chợ, chăm con, di chuyển, sức khoẻ, tài chính cá nhân...), thấy chỗ đau/lặp lại/khó chịu → tool nhỏ giải cứu
 - Tự sáng tạo không dựa vào signal nào — nếu bạn thấy có ý hay hơn
 
 TIÊU CHÍ CHẤT LƯỢNG (quan trọng — tránh idea "chán"):
 - **Cụ thể**: title phải là tên product, KHÔNG phải mô tả generic ("AI Todo Wrapper" ❌, "Standup — 5-min voice memo → team digest" ✓)
 - **Có góc riêng**: nêu rõ 1 điểm khác biệt với các tool cùng lĩnh vực đã có
 - **Buildable 1 ngày**: 2-24h, KHÔNG cần API/data khó xin, KHÔNG scope > 1 người 1 ngày
-- **Target user cụ thể**: "developers debugging..." ❌ vague; "SREs chăm 3 microservices Go, không muốn attach debugger" ✓
+- **Target user cụ thể**: "developers debugging..." ❌ vague; "SREs chăm 3 microservices Go, không muốn attach debugger" ✓; "mẹ 2 con lập menu tuần Chủ Nhật" ✓
 - **PMF signal**: user có động lực trả tiền / khoe cho bạn / dùng weekly?
-- **Đa dạng**: 10 idea đừng cùng 1 lĩnh vực. Trải: dev tools, productivity, AI/LLM apps, data viz, creative tools...
+- **Cân bằng phạm vi (BẮT BUỘC)**: ${n} idea PHẢI chia rõ hai nhóm — dù prompt/signals nghiêng về tech, VẪN phải giữ tỷ lệ:
+    - **~50% "everyday-life"**: giải nỗi đau/task lặp lại trong đời sống thực (đi chợ, nấu ăn, ngủ, sức khoẻ, tài chính cá nhân, giấy tờ, gia đình, di chuyển, mua sắm, học tập nhẹ, sở thích cá nhân). Target user KHÔNG phải dev/founder.
+    - **~50% "niche-technical"**: dev tools, productivity, AI/LLM apps, data viz, creative tools cho pro users.
+    Trong mỗi nhóm cũng đừng dồn cùng 1 lĩnh vực nhỏ.
 
 Song ngữ EN + VI cho mọi text. type ∈ web-frontend | full-stack | cli | browser-extension.
 Trả JSON array ${n} items, không markdown, không giải thích:
