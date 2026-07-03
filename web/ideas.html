@@ -251,6 +251,7 @@ async function renderStatusBar() {
     statFilter(c.building > 0 ? "attention" : "zero", "building", c.building, "building"),
     statFilter(c.demoReady > 0 ? "attention" : "zero", "demo-ready", c.demoReady, "demo-ready"),
     statFilter((c.deployRequested + c.deploying) > 0 ? "attention" : "zero", "deploying", c.deployRequested + c.deploying, "deploy-requested"),
+    statFilter(c.deployed > 0 ? "gate" : "zero", "deployed", c.deployed, "deployed"),
     statFilter(c.failedToday > 0 ? "error" : "zero", "failed today", c.failedToday, "failed"),
   ].join("");
   // Nếu có job waiting retry, hiển thị soonest reset time.

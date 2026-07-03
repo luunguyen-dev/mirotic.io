@@ -113,6 +113,7 @@ export async function handleFetch(req: Request): Promise<Response> {
       demoReady: all.filter((j) => j.status === "demo-ready").length,
       deployRequested: all.filter((j) => j.status === "deploy-requested").length,
       deploying: all.filter((j) => j.status === "deploying").length,
+      deployed: all.filter((j) => j.status === "deployed").length,
       failedToday: all.filter((j) => j.status === "failed" && j.started_at?.startsWith(todayPrefix)).length,
     };
     const soonestRetry = all
