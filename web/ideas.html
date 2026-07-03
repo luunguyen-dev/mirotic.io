@@ -321,6 +321,8 @@ async function renderStatusBar() {
   const nextTxt = nextRel < 60 ? `${nextRel}m` : `${Math.floor(nextRel / 60)}h ${nextRel % 60}m`;
   const nextStat = stat("", "next batch", `${nextTxt} (${s.morningAt})`);
   const pollStat = stat("", "poll", `${s.pollIntervalMin}m`);
+  // Tổng cost + turns cộng dồn từ đầu.
+  const totalStat = (s.totalTurns || s.totalCostUsd) ? stat("", "total", `${s.totalTurns || 0} turns · $${(s.totalCostUsd || 0).toFixed(4)}`) : "";
 
   const pills = (s.running || []).map(j => {
     const elapsedAttr = j.started_at ? `data-tick="${escapeHtml(j.started_at)}" data-prefix="${escapeHtml(j.status)} · "` : "";
@@ -336,7 +338,7 @@ async function renderStatusBar() {
     ? `<span class="label">đang chạy</span>${pills.join("")}`
     : `<span class="none">không có executor nào đang xử lý</span>`;
 
-  bar.innerHTML = `${gate}${nextSlotStat}<span class="sep"></span>${queue}${modelCoolStat}<span class="sep"></span>${nextStat}${retryStat}${pollStat}<span class="sep"></span>${runningBlock}`;
+  bar.innerHTML = `${gate}${nextSlotStat}<span class="sep"></span>${queue}${modelCoolStat}<span class="sep"></span>${nextStat}${retryStat}${pollStat}${totalStat}<span class="sep"></span>${runningBlock}`;
 }
 
 // Filter state cho board — click stat trong running-bar để set/clear.
