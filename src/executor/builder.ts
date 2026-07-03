@@ -174,7 +174,7 @@ async function runAgenticWithFallback(
       model = "";
     }
     if (!model) {
-      try { model = await registry.pickModel("agentic", complexity); }
+      try { model = await registry.pickModel("agentic", complexity, { exclude: tried }); }
       catch (e: any) {
         throw Object.assign(new Error(`[${scope}] all agentic models cooling down; earliest reset ${e.earliestReset}`),
           { code: "ALL_COOLDOWN", earliestReset: e.earliestReset });
@@ -198,6 +198,12 @@ async function runAgenticWithFallback(
       if (resetAt) {
         jLog(jobId, `[${scope}] ${model} HIT LIMIT — cooldown ${resetAt}, thử fallback…`, "error");
         await registry.markCooldown(model, resetAt, `${scope} session hit limit`);
+        continue;
+      }
+      // Runtime CLI thiếu (codex/claude không cài trong env này) → fallback sang model kế tiếp
+      // qua exclude[]. Không mark cooldown DB (cooldown share giữa worker/container).
+      if (/exited (1|127)|command not found|not installed|ENOENT|No such file|Executable not found/i.test(combined)) {
+        jLog(jobId, `[${scope}] ${model} runtime CLI thiếu → thử fallback…`, "error");
         continue;
       }
       throw e;
