@@ -157,6 +157,11 @@
   .running-bar { padding: 8px 20px; border-bottom: 1px solid #1c1c1f; background: #0f0f12; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; min-height: 40px; font-size: 12px; }
   .running-bar .label { text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin-right: 4px; font-size: 10px; }
   .running-bar .stat { background: #1a1a1e; border: 1px solid #2a2a2e; padding: 3px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 5px; }
+  .running-bar .stat.filterable { cursor: pointer; transition: background 0.1s, border-color 0.1s; }
+  .running-bar .stat.filterable:hover { background: #22222a; border-color: #3a3a44; }
+  .running-bar .stat.filterable.active { background: #1e2f3f; border-color: #7ba8e0; box-shadow: 0 0 8px rgba(123,168,224,0.25); }
+  .running-bar .stat.filterable.active .k { color: #7ba8e0; }
+  .running-bar .stat.filterable.active .v { color: #cfe0f0; }
   .running-bar .stat .k { color: #666; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
   .running-bar .stat .v { color: #ddd; font-weight: 500; font-variant-numeric: tabular-nums; }
   .running-bar .stat.gate .v { color: #a3d9a5; }
@@ -225,6 +230,14 @@ async function renderStatusBar() {
   const gateFull = s.startedInWindow >= s.dailyLimit;
   const c = s.counts;
   const stat = (kls, k, v) => `<span class="stat ${kls}"><span class="k">${k}</span><span class="v">${v}</span></span>`;
+  // Click stat → filter board xuống chỉ status đó (click lại clears filter).
+  // filterKey khớp COLS[i][0] để load() dễ lọc.
+  const statFilter = (kls, k, v, filterKey) => {
+    const active = filterStatus === filterKey ? " active" : "";
+    return `<span class="stat filterable ${kls}${active}" onclick="toggleFilter('${filterKey}')" title="click để lọc ${k}">
+      <span class="k">${k}</span><span class="v">${v}</span>
+    </span>`;
+  };
   const gate = `<span class="stat gate ${gateFull ? "full" : ""}"><span class="k">gate ${s.buildWindowHours || 24}h</span><span class="v">${s.startedInWindow}/${s.dailyLimit}</span></span>`;
   // Nếu gate đầy, hiển thị next slot (khi 1 build cũ nhất thoát khỏi rolling window).
   const nextSlotStat = s.nextSlotAt ? (() => {
@@ -233,12 +246,12 @@ async function renderStatusBar() {
     return `<span class="stat attention"><span class="k">next slot</span><span class="v">${txt}</span></span>`;
   })() : "";
   const queue = [
-    stat(c.approved > 0 ? "attention" : "zero", "approved", c.approved),
+    statFilter(c.approved > 0 ? "attention" : "zero", "approved", c.approved, "approved"),
     c.waitingRetry > 0 ? stat("attention", "rate-limited", c.waitingRetry) : "",
-    stat(c.building > 0 ? "attention" : "zero", "building", c.building),
-    stat(c.demoReady > 0 ? "attention" : "zero", "demo-ready", c.demoReady),
-    stat((c.deployRequested + c.deploying) > 0 ? "attention" : "zero", "deploying", c.deployRequested + c.deploying),
-    stat(c.failedToday > 0 ? "error" : "zero", "failed today", c.failedToday),
+    statFilter(c.building > 0 ? "attention" : "zero", "building", c.building, "building"),
+    statFilter(c.demoReady > 0 ? "attention" : "zero", "demo-ready", c.demoReady, "demo-ready"),
+    statFilter((c.deployRequested + c.deploying) > 0 ? "attention" : "zero", "deploying", c.deployRequested + c.deploying, "deploy-requested"),
+    statFilter(c.failedToday > 0 ? "error" : "zero", "failed today", c.failedToday, "failed"),
   ].join("");
   // Nếu có job waiting retry, hiển thị soonest reset time.
   const retryStat = s.soonestRetryAt ? (() => {
@@ -275,6 +288,13 @@ async function renderStatusBar() {
   bar.innerHTML = `${gate}${nextSlotStat}<span class="sep"></span>${queue}${modelCoolStat}<span class="sep"></span>${nextStat}${retryStat}${pollStat}<span class="sep"></span>${runningBlock}`;
 }
 
+// Filter state cho board — click stat trong running-bar để set/clear.
+let filterStatus = null;
+function toggleFilter(status) {
+  filterStatus = filterStatus === status ? null : status;
+  load();
+}
+
 async function load() {
   const jobs = await fetch("/api/jobs").then(r => r.json());
   document.getElementById("meta").textContent = `${jobs.length} jobs · refreshed ${new Date().toLocaleTimeString()}`;
@@ -282,6 +302,7 @@ async function load() {
   const board = document.getElementById("board");
   board.innerHTML = "";
   for (const [key, label] of COLS) {
+    if (filterStatus && key !== filterStatus) continue;
     // Board cover mọi status khả dĩ:
     // - "failed" col nuốt cả rejected
     // - "deploy-requested" col nuốt cả deploying (mid-ship state)
@@ -640,7 +661,12 @@ function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  // ESC: đóng drawer trước, nếu không mở thì clear filter.
+  if (document.getElementById("drawer").classList.contains("open")) return closeDrawer();
+  if (filterStatus) { filterStatus = null; load(); }
+});
 // Click outside drawer đóng drawer để card khác click được.
 // Bỏ qua click trên card/pill — chúng tự openDrawer với id mới.
 document.addEventListener("click", e => {
