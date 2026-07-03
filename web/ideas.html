@@ -332,7 +332,6 @@ async function openDrawer(id) {
   }
   if (j.status === "demo-ready") {
     actions.push(`<a class="primary" onclick="doAction('${id}','deploy','${j.signs.deploy}')">Deploy</a>`);
-    actions.push(`<a onclick="doPromote('${id}','${j.signs.promote}')" style="background:#3a2a4a;border-color:#5a4a7a;color:#d0b8ff">Promote → Project</a>`);
     // Nếu có sub-step failed (thường do cooldown lúc build): cho phép retry riêng những step đó,
     // giữ nguyên scaffold/implement/artifacts/github/local đã done.
     const failedSteps = (j.plan?.steps ?? []).filter(s => s.status === "failed");
@@ -340,6 +339,10 @@ async function openDrawer(id) {
       const list = failedSteps.map(s => s.key).join(", ");
       actions.push(`<a onclick="doAction('${id}','retry','${j.signs.retry}')" title="Retry: ${list}" style="background:#2a3a4a;border-color:#3a5a7a;color:#7bd0e0">↻ Retry ${failedSteps.length} failed step${failedSteps.length > 1 ? "s" : ""}</a>`);
     }
+  }
+  // Promote: bất cứ khi nào ý tưởng đã có demo/deploy chạy được.
+  if (["demo-ready", "deployed"].includes(j.status)) {
+    actions.push(`<a onclick="doPromote('${id}','${j.signs.promote}')" style="background:#3a2a4a;border-color:#5a4a7a;color:#d0b8ff">Promote → Project</a>`);
   }
   // Retry cho failed / rejected / approved-waiting-retry / building (stuck) / deploying (stuck).
   const nowIso = new Date().toISOString();
