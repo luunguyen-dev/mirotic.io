@@ -333,13 +333,26 @@ async function openDrawer(id) {
   if (j.status === "demo-ready") {
     actions.push(`<a class="primary" onclick="doAction('${id}','deploy','${j.signs.deploy}')">Deploy</a>`);
     actions.push(`<a onclick="doPromote('${id}','${j.signs.promote}')" style="background:#3a2a4a;border-color:#5a4a7a;color:#d0b8ff">Promote → Project</a>`);
+    // Nếu có sub-step failed (thường do cooldown lúc build): cho phép retry riêng những step đó,
+    // giữ nguyên scaffold/implement/artifacts/github/local đã done.
+    const failedSteps = (j.plan?.steps ?? []).filter(s => s.status === "failed");
+    if (failedSteps.length) {
+      const list = failedSteps.map(s => s.key).join(", ");
+      actions.push(`<a onclick="doAction('${id}','retry','${j.signs.retry}')" title="Retry: ${list}" style="background:#2a3a4a;border-color:#3a5a7a;color:#7bd0e0">↻ Retry ${failedSteps.length} failed step${failedSteps.length > 1 ? "s" : ""}</a>`);
+    }
   }
-  // Retry cho failed / rejected / approved-waiting-retry.
+  // Retry cho failed / rejected / approved-waiting-retry / building (stuck) / deploying (stuck).
   const nowIso = new Date().toISOString();
   const waitingRetry = j.status === "approved" && j.retry_after && j.retry_after > nowIso;
-  if (j.status === "failed" || j.status === "rejected" || waitingRetry) {
+  const isStuck = ["building", "deploying"].includes(j.status);
+  if (["failed", "rejected"].includes(j.status) || waitingRetry) {
     const label = waitingRetry ? "Retry now (skip wait)" : "Retry";
     actions.push(`<a onclick="doAction('${id}','retry','${j.signs.retry}')" style="background:#2a3a4a;border-color:#3a5a7a;color:#7bd0e0">↻ ${label}</a>`);
+  }
+  // Building/deploying: cho phép Cancel (mark failed) + Retry (reset plan + approved).
+  if (isStuck) {
+    actions.push(`<a onclick="doAction('${id}','cancel','${j.signs.cancel}')" class="danger">✕ Cancel</a>`);
+    actions.push(`<a onclick="doAction('${id}','retry','${j.signs.retry}')" style="background:#2a3a4a;border-color:#3a5a7a;color:#7bd0e0">↻ Retry from scratch</a>`);
   }
   // builder_model = null → auto (registry chọn). builder_model_used = model thực sự đã dùng.
   // Auto mode: hiển thị "Auto" chính + "(Sonnet 5)" dimmer bên phải khi đã resolved.

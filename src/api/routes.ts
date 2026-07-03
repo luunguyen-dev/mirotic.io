@@ -13,7 +13,7 @@ import * as registry from "../llm/registry";
 import { promoteJobToProject } from "../projects";
 import {
   sign, verify, jobSigns,
-  ACTIONS, PROMOTE_ACTION, RETRY_ACTION, BUILDER_CHOICES, BUILDER_DEFAULT,
+  ACTIONS, PROMOTE_ACTION, RETRY_ACTION, CANCEL_ACTION, BUILDER_CHOICES, BUILDER_DEFAULT,
 } from "./hmac";
 
 // Compute recommended agentic model NGAY LÚC NÀY cho 1 job (dựa CEO rating + cooldown).
@@ -185,16 +185,45 @@ export async function handleFetch(req: Request): Promise<Response> {
   }
 
   // Retry: reset job → approved, clear retry_after để poller pick ngay.
-  // Áp dụng cho: failed | approved còn trong retry window | rejected.
+  // - failed | rejected | approved-waiting: requeue nguyên trạng plan.
+  // - building | deploying (stuck): reset toàn bộ plan → pending (rebuild scratch).
+  // - demo-ready + có failed sub-step: reset chỉ failed → pending (runBuild sẽ skip step đã done).
   if (action === RETRY_ACTION && id) {
     if (!verify(id, RETRY_ACTION, url.searchParams.get("t") ?? "")) return page("❌ Token sai", 403);
     const j = await db.getJob(id);
     if (!j) return page("❌ Không thấy job", 404);
-    if (!["failed", "approved", "rejected"].includes(j.status)) {
-      return page(`❌ Chỉ retry được failed/approved/rejected. Status hiện tại: ${j.status}`, 400);
+    const hasFailedSteps = (j.plan?.steps ?? []).some((s: any) => s.status === "failed");
+    const isDemoReadyWithFailures = j.status === "demo-ready" && hasFailedSteps;
+    if (!["failed", "approved", "rejected", "building", "deploying"].includes(j.status) && !isDemoReadyWithFailures) {
+      return page(`❌ Không retry được. Status hiện tại: ${j.status}`, 400);
+    }
+    if (["building", "deploying"].includes(j.status) && j.plan?.steps) {
+      // Stuck job: rebuild từ đầu.
+      const resetSteps = j.plan.steps.map((s: any) =>
+        s.key === "spec" ? { ...s, status: "done" } : { ...s, status: "pending", note: undefined });
+      await db.setPlan(id, { ...j.plan, steps: resetSteps });
+    } else if (isDemoReadyWithFailures) {
+      // Chỉ retry các step failed. runBuild skip step đã done nên implement/scaffold không rescaffold.
+      const resetSteps = j.plan!.steps!.map((s: any) =>
+        s.status === "failed" ? { ...s, status: "pending", note: undefined } : s);
+      await db.setPlan(id, { ...j.plan, steps: resetSteps });
     }
     await db.requeueWithRetry(id, new Date(Date.now() - 1000).toISOString(), "manual retry");
     return Response.json({ ok: true, id, new_status: "approved" });
+  }
+
+  // Cancel: dừng build/deploy đang treo. Mark failed với note.
+  // NOTE: không kill subprocess đang chạy — chỉ flip DB. Nếu process thực còn sống,
+  // nó sẽ tự exit sau (không ảnh hưởng job khác) hoặc bị worker restart dọn.
+  if (action === CANCEL_ACTION && id) {
+    if (!verify(id, CANCEL_ACTION, url.searchParams.get("t") ?? "")) return page("❌ Token sai", 403);
+    const j = await db.getJob(id);
+    if (!j) return page("❌ Không thấy job", 404);
+    if (!["building", "deploying", "approved"].includes(j.status)) {
+      return page(`❌ Chỉ cancel được building/deploying/approved. Status hiện tại: ${j.status}`, 400);
+    }
+    await db.setResult(id, { ...(j.result ?? {}), error: "cancelled by user" } as any, "failed");
+    return Response.json({ ok: true, id, new_status: "failed" });
   }
 
   // approve / reject / deploy — HMAC status change

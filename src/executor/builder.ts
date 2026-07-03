@@ -227,6 +227,11 @@ export async function runBuild(id: string): Promise<void> {
   }
   jLog(id, `🤖 EXECUTOR (Claude Code + gstack) — ${id}`);
 
+  // Skip-if-done: retry sau khi 1 số step failed sẽ chỉ chạy lại step chưa done.
+  // Session A gộp scaffold + implement + artifacts + github → skip khi implement đã done.
+  const stepStatus = (key: string) =>
+    plan.steps?.find((s: any) => s.key === key)?.status ?? "pending";
+
   if (CONFIG.useRealClaude) {
     // Complexity từ CEO rating → chọn tier priority. 4 sessions dùng cùng class để giữ context.
     const complexity: registry.ComplexityClass = registry.complexityFromRating(job.ceo_rating);
@@ -245,7 +250,9 @@ Type: ${idea.type}
 Stack đề xuất: ${plan.stack}`;
 
     // ─── SESSION A: IMPLEMENT ───
-    try {
+    if (stepStatus("implement") === "done") {
+      jLog(id, `[implement] skip (đã done, retry mode)`, "summary");
+    } else try {
       const implementPrompt = `Bạn là Claude Code + gstack. cwd = ${cwd}.
 
 ${ideaBrief}
@@ -314,7 +321,9 @@ KHÔNG hỏi user — autonomous.`;
     const skillTools = "Bash,Edit,Write,Read,Glob,Grep,Skill,Task";
 
     // ─── SESSION B: REVIEW ───
-    try {
+    if (stepStatus("review") === "done") {
+      jLog(id, `[review] skip (đã done)`, "summary");
+    } else try {
       await updatePlanStep(id, "review", "in_progress");
       const reviewPrompt = `cwd = ${cwd}. Codebase vừa qua Implement session.
 
@@ -334,7 +343,9 @@ KHÔNG hỏi user.`;
     }
 
     // ─── SESSION C: CSO ───
-    try {
+    if (stepStatus("cso") === "done") {
+      jLog(id, `[cso] skip (đã done)`, "summary");
+    } else try {
       await updatePlanStep(id, "cso", "in_progress");
       const csoPrompt = `cwd = ${cwd}. Codebase đã qua Review.
 
@@ -352,7 +363,9 @@ KHÔNG hỏi user.`;
     }
 
     // ─── SESSION D: QA ───
-    try {
+    if (stepStatus("qa") === "done") {
+      jLog(id, `[qa] skip (đã done)`, "summary");
+    } else try {
       await updatePlanStep(id, "qa", "in_progress");
       const qaPrompt = `cwd = ${cwd}. Codebase đã qua Implement/Review/CSO.
 
@@ -389,7 +402,8 @@ Nếu container không lên trong 30s → log stderr và exit non-zero. KHÔNG h
   // Khởi container local để user test trước khi deploy AWS.
   const localPort = 3000 + (Math.abs(hash(id)) % 900);
   let repoUrl = "";
-  if (CONFIG.useRealClaude) {
+  const localAlreadyDone = stepStatus("local") === "done";
+  if (CONFIG.useRealClaude && !localAlreadyDone) {
     await Bun.write(`${cwd}/docker-compose.override.yml`,
 `services:
   app:

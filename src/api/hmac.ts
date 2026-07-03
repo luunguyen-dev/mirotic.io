@@ -17,7 +17,8 @@ export const ACTIONS: Record<string, JobStatus> = {
 
 // Special actions không đổi status theo pattern ACTIONS.
 export const PROMOTE_ACTION = "promote";
-export const RETRY_ACTION = "retry";
+export const RETRY_ACTION = "retry";     // reset failed/waiting/building/deploying → approved
+export const CANCEL_ACTION = "cancel";   // dừng build/deploy đang treo, mark failed
 
 // User có thể pick model builder qua dropdown khi Approve.
 //
@@ -47,5 +48,6 @@ export function jobSigns(id: string) {
     deploy: sign(id, "deploy"),
     promote: sign(id, "promote"),
     retry: sign(id, "retry"),
+    cancel: sign(id, "cancel"),
   };
 }
