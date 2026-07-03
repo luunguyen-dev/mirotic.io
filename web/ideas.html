@@ -395,9 +395,9 @@ async function openDrawer(id) {
       actions.push(`<a onclick="doAction('${id}','retry','${j.signs.retry}')" title="Retry: ${list}" style="background:#2a3a4a;border-color:#3a5a7a;color:#7bd0e0">↻ Retry ${failedSteps.length} failed step${failedSteps.length > 1 ? "s" : ""}</a>`);
     }
   }
-  // Promote: bất cứ khi nào ý tưởng đã có demo/deploy chạy được.
-  if (["demo-ready", "deployed"].includes(j.status)) {
-    actions.push(`<a onclick="doPromote('${id}','${j.signs.promote}')" style="background:#3a2a4a;border-color:#5a4a7a;color:#d0b8ff">Promote → Project</a>`);
+  // Ship to Project: chỉ khi đã deployed thành công (production URL live).
+  if (j.status === "deployed") {
+    actions.push(`<a onclick="doPromote('${id}','${j.signs.promote}')" style="background:#3a2a4a;border-color:#5a4a7a;color:#d0b8ff">Ship to Project</a>`);
   }
   // Retry cho failed / rejected / approved-waiting-retry / building (stuck) / deploying (stuck).
   const nowIso = new Date().toISOString();
