@@ -255,6 +255,20 @@ function relTime(iso) {
   return `${Math.floor(h / 24)}d`;
 }
 
+// Future-facing countdown: "23h 21m 05s" → "0s" → "ready" khi ISO đã qua.
+function countdown(iso) {
+  if (!iso) return "";
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return "ready";
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${s % 60}s`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${m % 60}m`;
+  return `${Math.floor(h / 24)}d ${h % 24}h`;
+}
+
 async function renderStatusBar() {
   const bar = document.getElementById("running-bar");
   const s = await fetch("/api/status").then(r => r.json()).catch(() => null);
@@ -292,11 +306,11 @@ async function renderStatusBar() {
     const txt = rel < 60 ? `${rel}m` : `${Math.floor(rel/60)}h ${rel%60}m`;
     return `<span class="stat attention"><span class="k">next retry</span><span class="v">${txt}</span></span>`;
   })() : "";
-  // Model cooldown chip
+  // Model cooldown chip — live countdown mỗi 1s qua data-countdown attribute.
   const modelCoolStat = (s.modelCooldowns && s.modelCooldowns > 0) ? (() => {
-    const rel = s.soonestModelReset ? Math.max(0, Math.floor((new Date(s.soonestModelReset).getTime() - Date.now()) / 60000)) : 0;
-    const txt = rel < 60 ? `${rel}m` : `${Math.floor(rel/60)}h ${rel%60}m`;
-    return `<span class="stat error" title="Xem /api/models" onclick="window.open('/api/models')"><span class="k">model cool</span><span class="v">${s.modelCooldowns} · ${txt}</span></span>`;
+    const iso = s.soonestModelReset ?? "";
+    const initial = countdown(iso);
+    return `<span class="stat error" title="Xem /api/models" onclick="window.open('/api/models')"><span class="k">model cool</span><span class="v">${s.modelCooldowns} · <span data-countdown="${escapeHtml(iso)}">${initial}</span></span></span>`;
   })() : "";
   const nextBatch = new Date(s.nextBatchAt);
   const nextRel = Math.max(0, Math.floor((nextBatch.getTime() - Date.now()) / 60000));
@@ -749,13 +763,16 @@ document.addEventListener("click", e => {
 });
 load();
 setInterval(load, 15_000);
-// Tick mỗi 1s để elapsed time của job đang chạy cập nhật mượt (không gọi API)
+// Tick mỗi 1s để elapsed time của job đang chạy + countdown model cool cập nhật mượt.
 setInterval(() => {
   document.querySelectorAll("[data-tick]").forEach(el => {
     const iso = el.getAttribute("data-tick");
     const prefix = el.getAttribute("data-prefix") ?? "";
     const suffix = el.getAttribute("data-suffix") ?? "";
     el.textContent = `${prefix}${relTime(iso)}${suffix}`;
+  });
+  document.querySelectorAll("[data-countdown]").forEach(el => {
+    el.textContent = countdown(el.getAttribute("data-countdown"));
   });
 }, 1000);
 </script>
