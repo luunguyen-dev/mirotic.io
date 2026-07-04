@@ -61,6 +61,11 @@ export async function generateIdeaBatch(n = 10, topK = 3): Promise<{ jobIds: str
     const plan = await makePlan(c);
     const id = await db.insertJob(c, plan);
     if (c.ceo_rating) await db.setCeoReview(id, c.ceo_rating, c.ceo_critique ?? "");
+    // Auto-approve nếu CEO rating >= threshold (config).
+    if (CONFIG.autoApproveMinRating > 0 && c.ceo_rating && c.ceo_rating >= CONFIG.autoApproveMinRating) {
+      await db.setStatus(id, "approved");
+      log(`   ✓ auto-approved (rating ${c.ceo_rating} >= ${CONFIG.autoApproveMinRating})`);
+    }
     jobIds.push(id);
     log(`   → job ${id} "${c.title}" (${c.ceo_rating ?? "?"}⭐ · score ${c.score.toFixed(2)})`);
   }

@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "{SLUG_TITLE}",
+    "slug": "{SLUG}",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "assetBundlePatterns": ["**/*"],
+    "android": {
+      "package": "io.mirotic.{SLUG_CAMEL}",
+      "adaptiveIcon": {
+        "backgroundColor": "#0e0e10"
+      }
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "io.mirotic.{SLUG_CAMEL}"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/{EAS_PROJECT_ID}"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "{EAS_PROJECT_ID}"
+      }
+    }
+  }
+}

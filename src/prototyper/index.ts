@@ -241,9 +241,14 @@ TIÊU CHÍ CHẤT LƯỢNG (quan trọng — tránh idea "chán"):
     - **~50% "niche-technical"**: dev tools, productivity, AI/LLM apps, data viz, creative tools cho pro users.
     Trong mỗi nhóm cũng đừng dồn cùng 1 lĩnh vực nhỏ.
 
-Song ngữ EN + VI cho mọi text. type ∈ web-frontend | full-stack | cli | browser-extension.
+Song ngữ EN + VI cho mọi text. type ∈ web-frontend | full-stack | cli | browser-extension | mobile-expo.
+
+**Cân bằng platform (BẮT BUỘC)**: 4-5 idea PHẢI có type="mobile-expo" (React Native + Expo — chạy trên iOS/Android). Còn lại chia đều các type khác.
+- Mobile idea tập trung: offline-first, camera/mic/GPS, notifications, portrait UX, on-the-go moment (đang di chuyển / trong bếp / ở phòng gym). KHÔNG mobile version của tool desktop.
+- Buildable-1-day cho mobile = feature core + 1-2 screens, không auth phức tạp, không sync cloud.
+
 Trả JSON array ${n} items, không markdown, không giải thích:
-[{"title_en":"...","title_vi":"...","slug":"kebab-case-slug","type":"web-frontend",
+[{"title_en":"...","title_vi":"...","slug":"kebab-case-slug","type":"web-frontend|mobile-expo|...",
 "pitch_en":"1 câu tagline","pitch_vi":"...",
 "features_en":["3-5 bullet feature core"],"features_vi":["..."],
 "target_user_en":"1 câu ai dùng","target_user_vi":"...",
@@ -257,7 +262,7 @@ Trả JSON array ${n} items, không markdown, không giải thích:
         const items = JSON.parse(m[0]) as any[];
         const synthesized: ScoredIdea[] = items.slice(0, n).map((it) => {
           const titleEn = String(it.title_en ?? it.title ?? "Untitled");
-          const t: ProjectType = (["web-frontend", "full-stack", "cli", "browser-extension"].includes(it.type)
+          const t: ProjectType = (["web-frontend", "full-stack", "cli", "browser-extension", "mobile-expo"].includes(it.type)
             ? it.type : "web-frontend") as ProjectType;
           return {
             title: titleEn,
@@ -382,8 +387,10 @@ TIÊU CHÍ (giữ nguyên chất lượng như batch):
 - Target user cụ thể.
 - Song ngữ EN + VI.
 
+**Quan trọng về type**: nếu input đề cập iOS/Android/React Native/Expo/mobile/điện thoại → dùng type="mobile-expo".
+
 Trả JSON object, không markdown, không giải thích:
-{"title_en":"...","title_vi":"...","slug":"kebab-case","type":"web-frontend|full-stack|cli|browser-extension",
+{"title_en":"...","title_vi":"...","slug":"kebab-case","type":"web-frontend|full-stack|cli|browser-extension|mobile-expo",
 "pitch_en":"1 câu tagline","pitch_vi":"...",
 "features_en":["3-5 bullet feature core"],"features_vi":["..."],
 "target_user_en":"1 câu ai dùng","target_user_vi":"...",
@@ -394,7 +401,7 @@ Trả JSON object, không markdown, không giải thích:
       const raw = await callLLMForPrototyper(prompt, { num_predict: 8192 });
       const it = extractJson(raw);
       const titleEn = String(it.title_en ?? it.title ?? trimmed);
-      const t: ProjectType = (["web-frontend", "full-stack", "cli", "browser-extension"].includes(it.type)
+      const t: ProjectType = (["web-frontend", "full-stack", "cli", "browser-extension", "mobile-expo"].includes(it.type)
         ? it.type : "web-frontend") as ProjectType;
       log(`   ✓ Prototyper enrich manual idea "${titleEn}" (mode: ${mode})`);
       return {

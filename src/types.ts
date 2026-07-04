@@ -3,7 +3,7 @@
  * Tách khỏi prototyper/db để tránh circular deps.
  */
 
-export type ProjectType = "web-frontend" | "full-stack" | "cli" | "browser-extension";
+export type ProjectType = "web-frontend" | "full-stack" | "cli" | "browser-extension" | "mobile-expo";
 
 export type Idea = {
   title: string; slug: string; type: ProjectType;
@@ -42,8 +42,12 @@ export type Plan = {
 export type Result = {
   repoUrl: string;
   branch: string;
-  localUrl: string;
-  deployedUrl?: string;
+  localUrl: string;      // web: http://localhost:3xxx
+  deployedUrl?: string;  // web: https://<slug>.luunguyen.dev
   publicPort?: number;
   error?: string;
+  // Mobile-specific fields (mobile-expo)
+  expoUrl?: string;      // exp://u.expo.dev/... tunnel URL — user scan QR bằng Expo Go
+  expoQr?: string;       // base64 data URL của QR code image
+  apkUrl?: string;       // https://<slug>.luunguyen.dev/app.apk (deployed prod)
 };

@@ -34,9 +34,25 @@ const hash = (s: string) => {
 };
 
 // Verify Builder đã tạo đủ artifact + docker-compose.yml parse được.
-export async function verifyBuildArtifacts(cwd: string): Promise<string[]> {
+// Mobile-expo: check app.json + eas.json + package.json + App.tsx thay vì Dockerfile.
+export async function verifyBuildArtifacts(cwd: string, projectType?: string): Promise<string[]> {
   const { statSync } = await import("node:fs");
   const missing: string[] = [];
+  if (projectType === "mobile-expo") {
+    for (const f of ["app.json", "eas.json", "package.json", "App.tsx", "ship-mobile.sh", "README.md"]) {
+      try { statSync(`${cwd}/${f}`); } catch { missing.push(f); }
+    }
+    if (missing.length === 0) {
+      // Verify package.json có deps expo + react-native
+      try {
+        const pkg = JSON.parse(await Bun.file(`${cwd}/package.json`).text());
+        if (!pkg.dependencies?.expo) missing.push("package.json (missing expo dependency)");
+        if (!pkg.dependencies?.["react-native"]) missing.push("package.json (missing react-native dependency)");
+      } catch (e: any) { missing.push(`package.json parse err: ${e?.message}`); }
+    }
+    return missing;
+  }
+  // Web/full-stack/cli/browser-extension: docker path
   for (const f of ["Dockerfile", "docker-compose.yml", "ship.sh", "README.md"]) {
     try { statSync(`${cwd}/${f}`); } catch { missing.push(f); }
   }
@@ -263,7 +279,53 @@ Stack đề xuất: ${plan.stack}`;
     if (stepStatus("implement") === "done") {
       jLog(id, `[implement] skip (đã done, retry mode)`, "summary");
     } else try {
-      const implementPrompt = `Bạn là Claude Code + gstack. cwd = ${cwd}.
+      const isMobile = idea.type === "mobile-expo";
+      const implementPrompt = isMobile
+        ? `Bạn là Claude Code + gstack. cwd = ${cwd}.
+
+${ideaBrief}
+
+SESSION NÀY = SCAFFOLD + IMPLEMENT + ARTIFACTS + GITHUB. Sessions /review /cso /qa RIÊNG sẽ chạy sau — KHÔNG chạy chúng trong session này.
+
+Nhiệm vụ (mobile-expo — React Native + Expo Managed workflow):
+
+1. Copy scaffold từ templates/mobile-expo/ về cwd:
+   - \`cp /Users/luunguyen/Workspaces/mirotic.io/templates/mobile-expo/app.json.tmpl app.json\`
+   - \`cp /Users/luunguyen/Workspaces/mirotic.io/templates/mobile-expo/eas.json.tmpl eas.json\`
+   - \`cp /Users/luunguyen/Workspaces/mirotic.io/templates/mobile-expo/package.json.tmpl package.json\`
+   - \`cp /Users/luunguyen/Workspaces/mirotic.io/templates/mobile-expo/App.tsx.tmpl App.tsx\`
+   - \`cp /Users/luunguyen/Workspaces/mirotic.io/templates/mobile-expo/tsconfig.json.tmpl tsconfig.json\`
+   - \`cp /Users/luunguyen/Workspaces/mirotic.io/templates/mobile-expo/gitignore.tmpl .gitignore\`
+   - \`cp /Users/luunguyen/Workspaces/mirotic.io/templates/mobile-expo/ship-mobile.sh.tmpl ship-mobile.sh && chmod +x ship-mobile.sh\`
+
+2. Thay placeholder trong các file vừa copy:
+   - \`{SLUG}\` → \`${idea.slug}\`
+   - \`{SLUG_TITLE}\` → \`${(idea.title_en ?? idea.title).replace(/"/g, '\\"')}\`
+   - \`{SLUG_CAMEL}\` → slug với dấu \`-\` bỏ đi (${idea.slug.replace(/-/g, "")})
+   - \`{PITCH_EN}\` → pitch EN
+   - \`{EAS_PROJECT_ID}\` để \`{EAS_PROJECT_ID}\` (EAS sẽ tự khởi tạo khi \`eas init\`)
+
+3. Implement core feature trong App.tsx:
+   - Dùng React Native primitives (View, Text, Pressable, TextInput, ScrollView, FlatList...).
+   - StyleSheet.create — KHÔNG dùng CSS/HTML/className.
+   - Portrait-first, offline-first (không cần network).
+   - Happy path đủ — feature core hoạt động thật, không empty state.
+   - Nếu cần navigation multi-screen, dùng expo-router (đã có trong package.json).
+
+4. \`npm install\` (RN dùng npm, không dùng bun).
+
+5. Verify:
+   - \`npx expo-doctor\` (nếu fail, fix rồi retry).
+   - \`npx tsc --noEmit\` — không lỗi type.
+
+6. \`README.md\` — 1 dòng pitch + hướng dẫn: \`npm start\` (dev tunnel) và \`./ship-mobile.sh\` (build APK).
+
+7. Git + GitHub:
+   - \`git init && git add -A && git commit -m "init"\`
+   - \`gh repo create luunguyen-dev/mirotic-${idea.slug} --private --source=. --push\`
+
+KHÔNG hỏi user — autonomous.`
+        : `Bạn là Claude Code + gstack. cwd = ${cwd}.
 
 ${ideaBrief}
 
@@ -292,7 +354,7 @@ KHÔNG hỏi user — autonomous.`;
       await updatePlanStep(id, "scaffold", "done");
       await updatePlanStep(id, "implement", "done");
       await updatePlanStep(id, "github", "done");
-      const missing = await verifyBuildArtifacts(cwd);
+      const missing = await verifyBuildArtifacts(cwd, idea.type);
       if (missing.length) {
         const err = `Builder thiếu artifact: ${missing.join(", ")}`;
         jLog(id, `[verify] FAIL — ${err}`, "error");
@@ -301,7 +363,7 @@ KHÔNG hỏi user — autonomous.`;
         return;
       }
       await updatePlanStep(id, "artifacts", "done");
-      jLog(id, `[verify] OK — Dockerfile + compose + ship.sh đủ`, "summary");
+      jLog(id, isMobile ? `[verify] OK — app.json + eas.json + package.json đủ` : `[verify] OK — Dockerfile + compose + ship.sh đủ`, "summary");
     } catch (e: any) {
       const errMsg = String(e?.message ?? e);
       if (e?.code === "ALL_COOLDOWN") {
@@ -409,33 +471,55 @@ Nếu container không lên trong 30s → log stderr và exit non-zero. KHÔNG h
     for (const [r, m] of steps) { await sleep(150); log(`  [${r}]`.padEnd(13) + m); }
   }
 
-  // Khởi container local để user test trước khi deploy AWS.
+  // Khởi container local (web) hoặc Expo tunnel (mobile) để user test trước khi deploy AWS.
   const localPort = 3000 + (Math.abs(hash(id)) % 900);
   let repoUrl = "";
+  let expoUrl: string | undefined;
+  let expoQr: string | undefined;
   const localAlreadyDone = stepStatus("local") === "done";
+  const isMobileType = idea.type === "mobile-expo";
   if (CONFIG.useRealClaude && !localAlreadyDone) {
-    await Bun.write(`${cwd}/docker-compose.override.yml`,
+    if (isMobileType) {
+      // Mobile: `npx expo start --tunnel` → tunnel URL exp://u.expo.dev/... + QR
+      jLog(id, `[expo] npx expo start --tunnel (background, keep alive để user quét QR)`);
+      await updatePlanStep(id, "local", "in_progress");
+      const startResult = await startExpoTunnel(cwd, id, localPort);
+      if (!startResult.url) {
+        const errMsg = `expo start --tunnel FAIL: ${startResult.error ?? "timeout"}`;
+        jLog(id, `[expo] ${errMsg}`, "error");
+        await updatePlanStep(id, "local", "failed", errMsg);
+        await db.setResult(id, { error: errMsg } as any, "failed");
+        return;
+      }
+      expoUrl = startResult.url;
+      expoQr = startResult.qr;
+      await updatePlanStep(id, "local", "done", expoUrl);
+      jLog(id, `[expo] tunnel: ${expoUrl}`, "summary");
+    } else {
+      // Web/full-stack/cli/browser-extension: docker compose up
+      await Bun.write(`${cwd}/docker-compose.override.yml`,
 `services:
   app:
     ports:
       - "${localPort}:3000"
 `);
-    jLog(id, `[docker] docker compose up -d — port ${localPort} → container :3000`);
-    await updatePlanStep(id, "local", "in_progress");
-    const upProc = Bun.spawn(["docker", "compose", "up", "-d", "--build"],
-      { cwd, stdout: "pipe", stderr: "pipe" });
-    const upErr = await new Response(upProc.stderr).text();
-    const upOut = await new Response(upProc.stdout).text();
-    await upProc.exited;
-    if (upProc.exitCode !== 0) {
-      const errMsg = `docker compose up FAIL: ${(upErr || upOut).slice(-500)}`;
-      jLog(id, `[docker] ${errMsg}`, "error");
-      await updatePlanStep(id, "local", "failed", errMsg);
-      await db.setResult(id, { error: errMsg } as any, "failed");
-      return;
+      jLog(id, `[docker] docker compose up -d — port ${localPort} → container :3000`);
+      await updatePlanStep(id, "local", "in_progress");
+      const upProc = Bun.spawn(["docker", "compose", "up", "-d", "--build"],
+        { cwd, stdout: "pipe", stderr: "pipe" });
+      const upErr = await new Response(upProc.stderr).text();
+      const upOut = await new Response(upProc.stdout).text();
+      await upProc.exited;
+      if (upProc.exitCode !== 0) {
+        const errMsg = `docker compose up FAIL: ${(upErr || upOut).slice(-500)}`;
+        jLog(id, `[docker] ${errMsg}`, "error");
+        await updatePlanStep(id, "local", "failed", errMsg);
+        await db.setResult(id, { error: errMsg } as any, "failed");
+        return;
+      }
+      await updatePlanStep(id, "local", "done", `http://localhost:${localPort}`);
+      jLog(id, `[docker] container running → http://localhost:${localPort}`, "summary");
     }
-    await updatePlanStep(id, "local", "done", `http://localhost:${localPort}`);
-    jLog(id, `[docker] container running → http://localhost:${localPort}`, "summary");
 
     try {
       const gitProc = Bun.spawn(["git", "remote", "get-url", "origin"], { cwd, stdout: "pipe", stderr: "pipe" });
@@ -447,9 +531,56 @@ Nếu container không lên trong 30s → log stderr và exit non-zero. KHÔNG h
   const result: Result = {
     repoUrl: repoUrl || `https://github.com/${CONFIG.githubOwner}/mirotic-${idea.slug}`,
     branch: "main",
-    localUrl: `http://localhost:${localPort}`,
+    localUrl: isMobileType ? "" : `http://localhost:${localPort}`,
+    ...(expoUrl ? { expoUrl } : {}),
+    ...(expoQr ? { expoQr } : {}),
   };
   await db.setResult(id, result, "demo-ready");
   await sendEmail(`🧪 Demo sẵn sàng: ${idea.title}`, demoReadyEmail(idea, result), "demo-ready");
-  jLog(id, `✓ demo-ready · test: ${result.localUrl} · repo: ${result.repoUrl}`, "summary");
+  jLog(id, `✓ demo-ready · test: ${isMobileType ? (expoUrl ?? "expo tunnel") : result.localUrl} · repo: ${result.repoUrl}`, "summary");
+}
+
+// Chạy `npx expo start --tunnel --non-interactive` ở background, parse stdout tìm exp://u.expo.dev/...
+// Return { url, qr } khi tunnel ready; error nếu timeout hoặc parse fail.
+// KHÔNG kill process — để tunnel alive cho user quét QR.
+async function startExpoTunnel(cwd: string, jobId: string, port: number): Promise<{ url?: string; qr?: string; error?: string }> {
+  const QRCode = await import("qrcode").catch(() => null);
+  if (!QRCode) return { error: "qrcode package chưa cài (npm install qrcode)" };
+  const proc = Bun.spawn(
+    ["npx", "expo", "start", "--tunnel", "--non-interactive", "--port", String(port)],
+    { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env, CI: "1", EXPO_NO_TELEMETRY: "1" } }
+  );
+  const timeoutMs = 90_000;
+  const startAt = Date.now();
+  let buffer = "";
+  const reader = proc.stdout.getReader();
+  const decoder = new TextDecoder();
+  try {
+    while (Date.now() - startAt < timeoutMs) {
+      const { value, done } = await Promise.race([
+        reader.read(),
+        new Promise<{ done: true; value: undefined }>((res) => setTimeout(() => res({ done: true, value: undefined }), 5000)),
+      ]);
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      buffer += chunk;
+      await db.appendLog(jobId, chunk.trim().slice(0, 300), "tool").catch(() => {});
+      // Search for exp:// URL
+      const m = buffer.match(/exp:\/\/[a-zA-Z0-9.\-_/]+/);
+      if (m) {
+        const url = m[0];
+        const qr = await QRCode.toDataURL(url, { width: 300, margin: 1 }).catch(() => undefined);
+        // KHÔNG kill process — để user quét. Chỉ detach từ reader.
+        reader.releaseLock();
+        return { url, qr };
+      }
+    }
+    reader.releaseLock();
+    proc.kill();
+    return { error: `tunnel URL không xuất hiện sau ${timeoutMs}ms; buffer tail: ${buffer.slice(-200)}` };
+  } catch (e: any) {
+    try { reader.releaseLock(); } catch {}
+    proc.kill();
+    return { error: String(e?.message ?? e) };
+  }
 }

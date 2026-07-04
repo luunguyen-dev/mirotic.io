@@ -43,12 +43,11 @@ export async function callTextWithFallback(
   const tried: string[] = [];
   for (let attempt = 0; attempt < 4; attempt++) {
     let model: string;
-    try { model = await registry.pickModel("text", role); }
+    try { model = await registry.pickModel("text", role, { exclude: tried }); }
     catch (e: any) {
       throw Object.assign(new Error(`[${role}] all text models cooling down; earliest reset ${e.earliestReset}`),
         { code: "ALL_COOLDOWN", earliestReset: e.earliestReset });
     }
-    if (tried.includes(model)) throw new Error(`[${role}] router exhausted after ${tried.join(", ")}`);
     tried.push(model);
     try {
       const output = await callLLM(model, prompt, { timeoutMs: opts.timeoutMs, num_predict: opts.num_predict });
@@ -61,6 +60,11 @@ export async function callTextWithFallback(
         await registry.markCooldown(model, resetAt, `${role} text call hit limit`);
         continue;
       }
+      // Runtime CLI thiếu — không mark cooldown, chỉ next model qua exclude.
+      if (/exited (1|127)|command not found|not installed|ENOENT|no such file|Executable not found/i.test(errMsg)) {
+        log(`   [${role}] ${model} runtime CLI thiếu → thử fallback`);
+        continue;
+      }
       throw e;
     }
   }
@@ -68,8 +72,9 @@ export async function callTextWithFallback(
 }
 
 // CEO review 1 idea — 1-turn, output rating 1-5 + critique EN/VI.
+// Router text-tier tự chọn model khả dụng (Claude → GPT → Gemini REST → Ollama),
+// nên không cần check USE_REAL_CLAUDE — container dashboard vẫn CEO được qua Gemini.
 export async function ceoReview(idea: Idea): Promise<{ rating: number; critique: { en: string; vi: string } } | null> {
-  if (!CONFIG.useRealClaude) return null;
   const prompt = `Bạn là CEO review 1 ý tưởng sản phẩm cho founder solo. Founder có thời gian ~1 ngày cho MVP.
 
 IDEA:

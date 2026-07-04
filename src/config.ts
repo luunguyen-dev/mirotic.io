@@ -15,6 +15,9 @@ export const CONFIG = {
   pollIntervalMin: Number(env("POLL_INTERVAL_MIN", "5")),
   dailyBuildLimit: Number(env("DAILY_BUILD_LIMIT", "3")),
   buildWindowHours: Number(env("BUILD_WINDOW_HOURS", "24")),
+  // Auto-approve: job có CEO rating >= threshold sẽ tự transition proposed → approved.
+  // 0 = disabled. 3 = auto-approve idea >= 3 sao. Cẩn thận: skip user oversight.
+  autoApproveMinRating: Number(env("AUTO_APPROVE_MIN_RATING", "0")),
   githubOwner: env("GITHUB_OWNER", "you"),
   awsHost: env("AWS_HOST", "your-ec2-host"),
   dataDir: DATA_DIR,

@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# ship-mobile.sh — deploy Expo project as APK to <slug>.luunguyen.dev/app.apk
+# Chạy từ thư mục gốc repo Expo. Cần: eas-cli đã login + SSH key EC2 trong ENV.
+#
+# ENV yêu cầu (Mac worker set sẵn):
+#   SSH_KEY=~/Workspaces/mirotic.io/luunguyendev.pem
+#   SSH_USER=ec2-user
+#   AWS_HOST=54.254.90.175
+set -euo pipefail
+
+SLUG="$(basename $(pwd) | sed 's/^mirotic-//')"
+BASE_URL="https://${SLUG}.luunguyen.dev"
+
+echo "🚀 ship-mobile: EAS Build APK cho ${SLUG}"
+
+# 1. EAS Build (preview profile → APK internal distribution)
+#    --wait: block đến khi build xong. Có thể mất 10-20 phút.
+#    --non-interactive: fail nếu cần input.
+eas build --profile preview --platform android --non-interactive --wait
+
+# 2. Lấy build URL từ EAS
+APK_URL=$(eas build:list --limit 1 --status finished --json --non-interactive | jq -r '.[0].artifacts.buildUrl')
+if [[ -z "$APK_URL" || "$APK_URL" == "null" ]]; then
+  echo "❌ Không lấy được APK URL từ EAS"
+  exit 1
+fi
+
+# 3. Download APK về local trước khi upload
+curl -L "$APK_URL" -o "app.apk"
+if [[ ! -s "app.apk" ]]; then
+  echo "❌ Download APK thất bại (file rỗng)"
+  exit 1
+fi
+APK_SIZE=$(du -h app.apk | cut -f1)
+echo "📦 APK size: ${APK_SIZE}"
+
+# 4. Đảm bảo folder trên EC2 tồn tại + upload
+SSH_OPTS="-i ${SSH_KEY} -o StrictHostKeyChecking=accept-new"
+ssh $SSH_OPTS "${SSH_USER}@${AWS_HOST}" "sudo mkdir -p /var/www/mirotic-apps/${SLUG} && sudo chown ${SSH_USER}:${SSH_USER} /var/www/mirotic-apps/${SLUG}"
+scp $SSH_OPTS "app.apk" "${SSH_USER}@${AWS_HOST}:/var/www/mirotic-apps/${SLUG}/app.apk"
+
+# 5. Ensure Caddy vhost cho subdomain (idempotent)
+ssh $SSH_OPTS "${SSH_USER}@${AWS_HOST}" bash <<CADDY
+set -e
+BLOCK="/etc/caddy/vhosts/${SLUG}.caddy"
+if [[ ! -f "\$BLOCK" ]]; then
+  sudo mkdir -p /etc/caddy/vhosts
+  sudo tee "\$BLOCK" > /dev/null <<EOF
+${SLUG}.luunguyen.dev {
+  root * /var/www/mirotic-apps/${SLUG}
+  @apk path /app.apk /app.aab
+  file_server @apk
+  header /app.apk Content-Type "application/vnd.android.package-archive"
+  header /app.apk Content-Disposition "attachment; filename=${SLUG}.apk"
+}
+EOF
+  sudo systemctl reload caddy || sudo docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+fi
+CADDY
+
+# 6. Clean up local APK (đã upload)
+rm -f app.apk
+
+echo "✓ Deployed: ${BASE_URL}/app.apk"
+echo "${BASE_URL}/app.apk"

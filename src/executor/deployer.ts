@@ -34,29 +34,34 @@ export async function deploy(id: string): Promise<void> {
   const slug = idea.slug;
   const publicPort = PUBLIC_PORT_BASE + (Math.abs(hash(slug)) % 900);
   const domain = `${slug}.luunguyen.dev`;
-  jLog(id, `🚀 DEPLOY → ${CONFIG.awsHost} — ${id}`);
+  const isMobileType = idea.type === "mobile-expo";
+  jLog(id, `🚀 DEPLOY → ${CONFIG.awsHost} — ${id}${isMobileType ? " (mobile: EAS Build + APK)" : ""}`);
   await updatePlanStep(id, "deploy", "in_progress");
 
   try {
     // 1) Verify build artifacts còn nguyên
-    const missing = await verifyBuildArtifacts(cwd);
+    const missing = await verifyBuildArtifacts(cwd, idea.type);
     if (missing.length) throw new Error(`thiếu artifact: ${missing.join(", ")}`);
 
-    // 2) Ghi .shipenv cho ship.sh
+    // 2) Ghi .shipenv (web) hoặc setup ENV cho ship-mobile.sh
     const env = process.env;
-    const shipenv = [
-      `SLUG=${slug}`,
-      `EC2_HOST=${env.AWS_HOST}`,
-      `EC2_USER=${env.SSH_USER ?? "ec2-user"}`,
-      `SSH_KEY=${env.SSH_KEY}`,
-      `PORT=${publicPort}`,
-      `CADDY_DOMAIN=${domain}`,
-    ].join("\n") + "\n";
-    await Bun.write(`${cwd}/.shipenv`, shipenv);
+    if (!isMobileType) {
+      const shipenv = [
+        `SLUG=${slug}`,
+        `EC2_HOST=${env.AWS_HOST}`,
+        `EC2_USER=${env.SSH_USER ?? "ec2-user"}`,
+        `SSH_KEY=${env.SSH_KEY}`,
+        `PORT=${publicPort}`,
+        `CADDY_DOMAIN=${domain}`,
+      ].join("\n") + "\n";
+      await Bun.write(`${cwd}/.shipenv`, shipenv);
+    }
+    // Mobile: ship-mobile.sh đọc SSH_KEY/SSH_USER/AWS_HOST trực tiếp từ env (đã có sẵn).
 
-    // 3) Chạy ship.sh — pipe + tail vào job_logs
-    jLog(id, `[ship] bash ./ship.sh — domain=${domain} port=${publicPort}`);
-    const proc = Bun.spawn(["bash", "./ship.sh"], { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env } });
+    // 3) Chạy ship script — pipe + tail vào job_logs
+    const shipScript = isMobileType ? "./ship-mobile.sh" : "./ship.sh";
+    jLog(id, `[ship] bash ${shipScript} — ${isMobileType ? `EAS Build APK → ${domain}/app.apk` : `domain=${domain} port=${publicPort}`}`);
+    const proc = Bun.spawn(["bash", shipScript], { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env } });
     const pipeToLog = async (stream: ReadableStream<Uint8Array>, isStderr: boolean) => {
       const reader = stream.getReader(); const dec = new TextDecoder(); let buf = "";
       for (;;) {
@@ -72,13 +77,14 @@ export async function deploy(id: string): Promise<void> {
     };
     await Promise.all([pipeToLog(proc.stdout as any, false), pipeToLog(proc.stderr as any, true)]);
     await proc.exited;
-    if (proc.exitCode !== 0) throw new Error(`ship.sh exit ${proc.exitCode}`);
+    if (proc.exitCode !== 0) throw new Error(`${shipScript} exit ${proc.exitCode}`);
 
     const deployedUrl = `https://${domain}`;
-    await db.setResult(id, { ...(job.result ?? {}), deployedUrl, publicPort }, "deployed");
-    await updatePlanStep(id, "deploy", "done", deployedUrl);
-    await sendEmail(`🚀 Đã deploy: ${idea.title}`, deployedEmail(idea, deployedUrl), "deployed");
-    jLog(id, `✓ deployed · ${deployedUrl}`, "summary");
+    const apkUrl = isMobileType ? `${deployedUrl}/app.apk` : undefined;
+    await db.setResult(id, { ...(job.result ?? {}), deployedUrl, publicPort, ...(apkUrl ? { apkUrl } : {}) }, "deployed");
+    await updatePlanStep(id, "deploy", "done", apkUrl ?? deployedUrl);
+    await sendEmail(`🚀 Đã deploy: ${idea.title}`, deployedEmail(idea, apkUrl ?? deployedUrl), "deployed");
+    jLog(id, `✓ deployed · ${apkUrl ?? deployedUrl}`, "summary");
   } catch (e: any) {
     jLog(id, `[ship] FAILED: ${e?.message ?? e}`, "error");
     await updatePlanStep(id, "deploy", "failed", String(e?.message ?? e));

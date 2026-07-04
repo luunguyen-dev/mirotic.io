@@ -1,0 +1,62 @@
+import { StatusBar } from 'expo-status-bar';
+import { StyleSheet, Text, View, Pressable, SafeAreaView } from 'react-native';
+import { useState } from 'react';
+
+export default function App() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <StatusBar style="light" />
+      <View style={styles.container}>
+        <Text style={styles.title}>{SLUG_TITLE}</Text>
+        <Text style={styles.pitch}>{PITCH_EN}</Text>
+
+        <Pressable
+          style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+          onPress={() => setCount((c) => c + 1)}
+        >
+          <Text style={styles.buttonText}>Tapped {count} times</Text>
+        </Pressable>
+
+        <Text style={styles.hint}>
+          Skeleton scaffold — Builder session sẽ implement core feature ở đây.
+        </Text>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: '#0e0e10' },
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    gap: 16,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '600',
+    color: '#e8e8e8',
+    textAlign: 'center',
+  },
+  pitch: {
+    fontSize: 15,
+    color: '#888',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  button: {
+    backgroundColor: '#1f4d39',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2d6e54',
+  },
+  buttonPressed: { backgroundColor: '#2a6347' },
+  buttonText: { color: '#a3d9a5', fontSize: 15, fontWeight: '500' },
+  hint: { fontSize: 12, color: '#555', marginTop: 24, fontStyle: 'italic' },
+});

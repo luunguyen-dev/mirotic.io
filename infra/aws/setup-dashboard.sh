@@ -25,6 +25,9 @@ ENV_FILE=/tmp/.env.dashboard.$$
   echo "GEMINI_API_KEY=$(grep ^GEMINI_API_KEY= "$ROOT/.env" | cut -d= -f2-)"
   echo "MODEL_PROTOTYPER=gemini-2.5-pro"
   echo "MODEL_CEO=gemini-2.5-pro"
+  # Auto-approve threshold: manual submit rating >= N sẽ tự transition proposed → approved.
+  AAR=$(grep ^AUTO_APPROVE_MIN_RATING= "$ROOT/.env" | cut -d= -f2- 2>/dev/null || echo "0")
+  echo "AUTO_APPROVE_MIN_RATING=${AAR:-0}"
 } > "$ENV_FILE"
 
 echo "→ [2/4] rsync source → /opt/mirotic-dashboard/"

@@ -400,7 +400,7 @@ async function load() {
         ${topRow}
         <div class="title">${escapeHtml(titleEn)}</div>
         ${titleVn}
-        <div class="meta"><span class="source">${escapeHtml(j.source || "?")}</span>${escapeHtml(j.type || "")}</div>
+        <div class="meta"><span class="source">${escapeHtml(j.source || "?")}</span>${j.type === "mobile-expo" ? "📱 " : ""}${escapeHtml(j.type || "")}</div>
         ${costRow}
         <div class="time ${isLive ? "live" : ""}" data-tick="${escapeHtml(tickIso || "")}" data-prefix="${escapeHtml(prefix)}" data-suffix="${escapeHtml(suffix)}">${escapeHtml(timeLabel)}</div>`;
       card.onclick = () => openDrawer(j.id);
@@ -461,7 +461,8 @@ async function openDrawer(id) {
     actions.push(`<a class="danger" onclick="doAction('${id}','reject','${j.signs.reject}')">Reject</a>`);
   }
   if (j.status === "demo-ready") {
-    actions.push(`<a class="primary" onclick="doAction('${id}','deploy','${j.signs.deploy}')">Deploy</a>`);
+    const deployLabel = j.idea?.type === "mobile-expo" ? "Deploy → APK" : "Deploy";
+    actions.push(`<a class="primary" onclick="doAction('${id}','deploy','${j.signs.deploy}')">${deployLabel}</a>`);
     // Nếu có sub-step failed (thường do cooldown lúc build): cho phép retry riêng những step đó,
     // giữ nguyên scaffold/implement/artifacts/github/local đã done.
     const failedSteps = (j.plan?.steps ?? []).filter(s => s.status === "failed");
@@ -661,6 +662,8 @@ function renderResult(result) {
   const rows = [];
   const urlBits = [
     ["Local", result.localUrl, "docker local"],
+    ["Expo", result.expoUrl, "scan QR bằng Expo Go"],
+    ["APK", result.apkUrl, "Android download"],
     ["Deployed", result.deployedUrl, "live production"],
     ["Repo", result.repoUrl, "GitHub private"],
   ];
@@ -671,6 +674,11 @@ function renderResult(result) {
       <span class="hint">${hint}</span>
     </div>`);
   }
+  // QR image cho Expo tunnel — user scan bằng Expo Go trên điện thoại.
+  if (result.expoQr) rows.push(`<div style="padding:12px;text-align:center;background:#fff;border-radius:8px;margin-top:8px">
+    <img src="${escapeHtml(result.expoQr)}" alt="Expo Go QR" style="width:220px;height:220px;display:block;margin:0 auto" />
+    <div style="color:#333;font-size:11px;margin-top:6px">Mở app <b>Expo Go</b> → Scan QR</div>
+  </div>`);
   if (result.publicPort) rows.push(`<div style="color:#666;font-size:11px;padding:4px 12px">host port: ${result.publicPort}</div>`);
   if (result.error) rows.push(`<div style="color:#e07b7b;font-size:12px;margin-top:6px;padding:4px 12px">${escapeHtml(result.error)}</div>`);
   return rows.length ? `<div class="field"><label>Result</label><div class="url-list">${rows.join("")}</div></div>` : "";

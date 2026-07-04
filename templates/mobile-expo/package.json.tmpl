@@ -1,0 +1,31 @@
+{
+  "name": "{SLUG}",
+  "version": "0.1.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start --tunnel",
+    "start:local": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "test": "jest --watchAll=false --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "build:preview": "eas build --profile preview --platform android --non-interactive --wait",
+    "build:apk": "eas build --profile preview --platform android --non-interactive --wait"
+  },
+  "dependencies": {
+    "expo": "^57.0.0",
+    "expo-status-bar": "~3.0.0",
+    "react": "19.0.0",
+    "react-native": "0.79.5",
+    "expo-router": "~4.0.0",
+    "react-native-safe-area-context": "5.4.0",
+    "react-native-screens": "~4.4.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.0",
+    "@types/react": "~19.0.0",
+    "typescript": "~5.8.0"
+  },
+  "private": true
+}
