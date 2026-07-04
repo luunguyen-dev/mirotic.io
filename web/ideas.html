@@ -402,7 +402,7 @@ async function load() {
         ${titleVn}
         <div class="meta"><span class="source">${escapeHtml(j.source || "?")}</span>${j.type === "mobile-expo" ? "📱 " : ""}${escapeHtml(j.type || "")}</div>
         ${costRow}
-        <div class="time ${isLive ? "live" : ""}" data-tick="${escapeHtml(tickIso || "")}" data-prefix="${escapeHtml(prefix)}" data-suffix="${escapeHtml(suffix)}">${escapeHtml(timeLabel)}</div>`;
+        <div class="time ${isLive ? "live" : ""}"${(isLive || waitingRetry) ? ` data-tick="${escapeHtml(tickIso || "")}" data-prefix="${escapeHtml(prefix)}" data-suffix="${escapeHtml(suffix)}"` : ""}>${escapeHtml(timeLabel)}</div>`;
       card.onclick = () => openDrawer(j.id);
       cards.appendChild(card);
     }
