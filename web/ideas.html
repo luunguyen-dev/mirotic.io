@@ -679,6 +679,12 @@ function renderResult(result) {
     <img src="${escapeHtml(result.expoQr)}" alt="Expo Go QR" style="width:220px;height:220px;display:block;margin:0 auto" />
     <div style="color:#333;font-size:11px;margin-top:6px">Mở app <b>Expo Go</b> → Scan QR</div>
   </div>`);
+  // CLI hint — user chạy tay để start Expo tunnel + xem QR (Expo Go).
+  if (result.cliHint) rows.push(`<div style="margin-top:8px;padding:10px 12px;background:#0a0a0d;border:1px solid #2a2a2e;border-radius:5px">
+    <div style="color:#666;font-size:10px;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;margin-bottom:4px">Start Expo tunnel (chạy tay)</div>
+    <code style="color:#7ba8e0;font-size:11px;font-family:'SF Mono',Menlo,monospace;user-select:all;word-break:break-all">${escapeHtml(result.cliHint)}</code>
+    <div style="color:#555;font-size:10px;margin-top:4px">QR code sẽ xuất hiện trong terminal. Mở Expo Go trên điện thoại → Scan.</div>
+  </div>`);
   if (result.publicPort) rows.push(`<div style="color:#666;font-size:11px;padding:4px 12px">host port: ${result.publicPort}</div>`);
   if (result.error) rows.push(`<div style="color:#e07b7b;font-size:12px;margin-top:6px;padding:4px 12px">${escapeHtml(result.error)}</div>`);
   return rows.length ? `<div class="field"><label>Result</label><div class="url-list">${rows.join("")}</div></div>` : "";

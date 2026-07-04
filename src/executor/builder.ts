@@ -439,7 +439,17 @@ KHÔNG hỏi user.`;
       jLog(id, `[qa] skip (đã done)`, "summary");
     } else try {
       await updatePlanStep(id, "qa", "in_progress");
-      const qaPrompt = `cwd = ${cwd}. Codebase đã qua Implement/Review/CSO.
+      const qaPrompt = idea.type === "mobile-expo" ? `cwd = ${cwd}. Codebase Expo/RN đã qua Implement/Review/CSO.
+
+Load skill /qa từ gstack. Smoke test cho Expo Managed workflow:
+1. \`npx expo-doctor\` — verify project setup lành mạnh. Nếu fail, sửa rồi retry.
+2. \`npx tsc --noEmit\` — no type errors.
+3. \`npx expo export --platform web --output-dir /tmp/expo-web-${idea.slug}\` — verify JS bundle build được (test cross-platform Metro bundler).
+4. Nếu expo export succeed, verify /tmp/expo-web-${idea.slug}/index.html tồn tại.
+5. Cleanup: \`rm -rf /tmp/expo-web-${idea.slug}\`
+
+KHÔNG cần chạy \`expo start --tunnel\` (user sẽ tự chạy khi muốn quét QR test).
+Nếu bất cứ bước nào fail → log stderr và exit non-zero. KHÔNG hỏi user.` : `cwd = ${cwd}. Codebase đã qua Implement/Review/CSO.
 
 Load skill /qa từ gstack. Smoke test:
 1. Tạo docker-compose.override.yml TẠM ở cwd:
@@ -480,21 +490,11 @@ Nếu container không lên trong 30s → log stderr và exit non-zero. KHÔNG h
   const isMobileType = idea.type === "mobile-expo";
   if (CONFIG.useRealClaude && !localAlreadyDone) {
     if (isMobileType) {
-      // Mobile: `npx expo start --tunnel` → tunnel URL exp://u.expo.dev/... + QR
-      jLog(id, `[expo] npx expo start --tunnel (background, keep alive để user quét QR)`);
-      await updatePlanStep(id, "local", "in_progress");
-      const startResult = await startExpoTunnel(cwd, id, localPort);
-      if (!startResult.url) {
-        const errMsg = `expo start --tunnel FAIL: ${startResult.error ?? "timeout"}`;
-        jLog(id, `[expo] ${errMsg}`, "error");
-        await updatePlanStep(id, "local", "failed", errMsg);
-        await db.setResult(id, { error: errMsg } as any, "failed");
-        return;
-      }
-      expoUrl = startResult.url;
-      expoQr = startResult.qr;
-      await updatePlanStep(id, "local", "done", expoUrl);
-      jLog(id, `[expo] tunnel: ${expoUrl}`, "summary");
+      // Mobile: NOT auto-start tunnel (dễ timeout do @expo/ngrok install lazy + non-interactive quirks).
+      // Thay vào đó, ghi hint command để user tự chạy khi cần quét QR.
+      // Expo Go tunnel URL sẽ được điền sau khi user chạy tay (tương lai có thể thêm nút "Start tunnel" trên dashboard).
+      await updatePlanStep(id, "local", "done", `cd ${cwd} && npx expo start --tunnel`);
+      jLog(id, `[expo] scaffold sẵn. Chạy tay: cd ${cwd} && npx expo start --tunnel — sẽ có QR trong terminal`, "summary");
     } else {
       // Web/full-stack/cli/browser-extension: docker compose up
       await Bun.write(`${cwd}/docker-compose.override.yml`,
@@ -534,6 +534,7 @@ Nếu container không lên trong 30s → log stderr và exit non-zero. KHÔNG h
     localUrl: isMobileType ? "" : `http://localhost:${localPort}`,
     ...(expoUrl ? { expoUrl } : {}),
     ...(expoQr ? { expoQr } : {}),
+    ...(isMobileType ? { cliHint: `cd ${cwd} && npx expo start --tunnel` } : {}),
   };
   await db.setResult(id, result, "demo-ready");
   await sendEmail(`🧪 Demo sẵn sàng: ${idea.title}`, demoReadyEmail(idea, result), "demo-ready");

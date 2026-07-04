@@ -47,7 +47,8 @@ export type Result = {
   publicPort?: number;
   error?: string;
   // Mobile-specific fields (mobile-expo)
-  expoUrl?: string;      // exp://u.expo.dev/... tunnel URL — user scan QR bằng Expo Go
-  expoQr?: string;       // base64 data URL của QR code image
+  expoUrl?: string;      // exp://u.expo.dev/... tunnel URL — user scan QR bằng Expo Go (nếu manual start tunnel)
+  expoQr?: string;       // base64 data URL của QR code image (khi expoUrl có)
+  cliHint?: string;      // command user chạy tay để start tunnel + get QR (mobile)
   apkUrl?: string;       // https://<slug>.luunguyen.dev/app.apk (deployed prod)
 };
