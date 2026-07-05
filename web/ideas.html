@@ -713,7 +713,7 @@ async function openDrawer(id) {
   const riskBlock = field("Risk", j.idea?.risk_en, j.idea?.risk_vi);
 
   const stepIcon = { pending: "○", in_progress: "◐", done: "✓", failed: "✗" };
-  const stepsBlock = j.plan?.steps?.length ? `<div class="field"><label>Progress checklist</label>
+  const stepsBlock = j.plan?.steps?.length ? `<div class="field"><label>Checklist</label>
     <div class="checklist">${j.plan.steps.map(s => `<div class="step ${s.status}">
       <span class="icon">${stepIcon[s.status] || "○"}</span>
       <div style="flex:1"><span>${escapeHtml(s.label_en)}</span><span class="lbl-vi">${escapeHtml(s.label_vi)}</span>${s.note ? `<span class="note">${escapeHtml(s.note)}</span>` : ""}</div>
