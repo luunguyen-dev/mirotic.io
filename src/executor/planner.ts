@@ -34,6 +34,7 @@ export const BASE_STEPS: PlanStep[] = [
 ];
 
 // Base plan sinh khi idea insert. Không gọi LLM.
+// KÈM steps để checklist hiển thị từ trạng thái proposed, không cần chờ runBuild sinh detailed plan.
 export async function makePlan(idea: Idea): Promise<Plan> {
   return {
     problem: idea.why,
@@ -43,6 +44,7 @@ export async function makePlan(idea: Idea): Promise<Plan> {
     buildSteps: ["Scaffold + tooling", "Core feature (happy path)", "Empty/error states", "Polish"],
     testPlan: [idea.type === "cli" ? "Unit + CLI smoke" : "Browser test (/qa)", "Edge cases", "Regression"],
     tasteDecisions: [`Stack: ${STACK_BY_TYPE[idea.type]} — OK?`, "Scope MVP — OK?"],
+    steps: JSON.parse(JSON.stringify(BASE_STEPS)) as PlanStep[],
   };
 }
 
