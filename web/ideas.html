@@ -389,13 +389,16 @@ function renderEventsDrawer() {
   const tableEl = document.getElementById("events-table");
   if (!filterEl || !tableEl) return;
 
-  // Executor counts (dedup slug from events).
+  // Executor counts + track first-seen index (eventsAll is DESC → first occurrence = most recent event).
   const counts = {};
-  for (const e of eventsAll) {
+  const firstSeen = {};
+  eventsAll.forEach((e, i) => {
     const s = slugOf(e.job_id);
     counts[s] = (counts[s] || 0) + 1;
-  }
-  const executors = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    if (!(s in firstSeen)) firstSeen[s] = i;
+  });
+  // Sort: executor có event mới nhất → lên đầu. Chip đầu tiên thường là job đang building/vừa deploy.
+  const executors = Object.entries(counts).sort((a, b) => firstSeen[a[0]] - firstSeen[b[0]]);
 
   filterEl.innerHTML = `
     <span class="filter-chip ${eventsFilterExecutor === null ? "active" : ""}" onclick="event.stopPropagation(); pickEventsFilter(null)">all<span class="count">${eventsAll.length}</span></span>
