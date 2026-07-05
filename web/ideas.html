@@ -136,6 +136,9 @@
   .drawer .critique-list li.weaknesses::before { content: "▼"; color: #e0a08a; }
   .drawer .critique-list li.verdict::before { content: "◆"; color: #e0d47b; }
   .drawer .critique-list li.neutral::before { content: "▸"; color: #a89e6b; font-size: 13px; top: 1px; }
+  /* VI list — italic + hơi mờ để phân biệt với EN, cách EN bằng khoảng trắng */
+  .drawer .critique-list.vi { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #3a3220; }
+  .drawer .critique-list.vi li { color: #a89e88; font-style: italic; font-size: 13px; }
   .drawer .critique-list li .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; margin-right: 6px; }
   .drawer .critique-list li.strengths .lbl { color: #a3d9a5; }
   .drawer .critique-list li.weaknesses .lbl { color: #e0a08a; }
@@ -674,27 +677,30 @@ async function openDrawer(id) {
   const hasError = !!j.error_detail;
   const progressBadge = (failedCount || hasError) ? `<span class="badge">${failedCount + (hasError ? 1 : 0)}</span>` : "";
 
-  // CEO critique thành list — ưu tiên keyword Strengths/Weaknesses/Verdict; nếu không, tự split câu.
+  // CEO critique thành list — ưu tiên keyword; nếu không split câu.
+  // Render cả EN và VI dưới dạng list, mỗi ý một dòng.
   const critiqueBlock = (() => {
-    if (!critique.en) return "";
-    const parts = splitCritique(critique.en);
-    let inner;
-    if (parts) {
-      inner = `<ul class="critique-list">
-        ${parts.strengths ? `<li class="strengths"><span class="lbl">Strengths</span> ${escapeHtml(parts.strengths)}</li>` : ""}
-        ${parts.weaknesses ? `<li class="weaknesses"><span class="lbl">Weaknesses</span> ${escapeHtml(parts.weaknesses)}</li>` : ""}
-        ${parts.verdict ? `<li class="verdict"><span class="lbl">Verdict</span> ${escapeHtml(parts.verdict)}</li>` : ""}
-      </ul>`;
-    } else {
-      // Sentence-split fallback: mỗi câu → 1 bullet.
-      const sentences = critique.en.split(/(?<=[.?!])\s+(?=[A-Z])/).map(s => s.trim()).filter(Boolean);
-      inner = `<ul class="critique-list">
+    if (!critique.en && !critique.vi) return "";
+    const renderList = (text, cls) => {
+      if (!text) return "";
+      const parts = splitCritique(text);
+      if (parts) {
+        return `<ul class="critique-list ${cls}">
+          ${parts.strengths ? `<li class="strengths"><span class="lbl">Strengths</span> ${escapeHtml(parts.strengths)}</li>` : ""}
+          ${parts.weaknesses ? `<li class="weaknesses"><span class="lbl">Weaknesses</span> ${escapeHtml(parts.weaknesses)}</li>` : ""}
+          ${parts.verdict ? `<li class="verdict"><span class="lbl">Verdict</span> ${escapeHtml(parts.verdict)}</li>` : ""}
+        </ul>`;
+      }
+      // Sentence-split. VI có thể dùng dấu . như EN, split cùng regex nhưng bỏ điều kiện "capital letter".
+      const sentences = text.split(/(?<=[.?!])\s+/).map(s => s.trim()).filter(Boolean);
+      return `<ul class="critique-list ${cls}">
         ${sentences.map(s => `<li class="neutral">${escapeHtml(s)}</li>`).join("")}
       </ul>`;
-    }
-    return `<div class="critique"${critique.vi ? ` title="${escapeHtml(critique.vi)}"` : ""}>
+    };
+    return `<div class="critique">
       <div class="head"><span>CEO Critique</span>${stars ? `<span class="stars">${stars}</span>` : ""}</div>
-      ${inner}
+      ${renderList(critique.en, "en")}
+      ${critique.vi ? renderList(critique.vi, "vi") : ""}
     </div>`;
   })();
 
