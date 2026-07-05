@@ -531,17 +531,19 @@ async function load() {
         : `${prefix}${relTime(tickIso)}${suffix}`;
       const titleEn = j.idea?.title_en || j.title || j.slug || j.id;
       const titleVi = j.idea?.title_vi;
-      const titleVn = titleVi && titleVi !== titleEn ? `<div class="title-vi">${escapeHtml(titleVi)}</div>` : "";
       const stars = j.ceo_rating ? "★".repeat(j.ceo_rating) + "☆".repeat(5 - j.ceo_rating) : "";
       const hours = j.idea?.demo_hours ? `${j.idea.demo_hours}h` : "";
       const topRow = stars || hours ? `<div class="top-row"><span class="rating"><span class="stars">${stars}</span></span><span class="hours">${escapeHtml(hours)}</span></div>` : "";
-      // Cost + turns cộng dồn từ mọi gstack session (implement + review + cso + qa).
-      const costRow = (j.total_turns || j.total_cost_usd) ? `<div class="cost">${j.total_turns || 0} turns · $${(j.total_cost_usd ?? 0).toFixed(4)}</div>` : "";
+      const costRow = j.total_cost_usd ? `<div class="cost">$${j.total_cost_usd.toFixed(4)}</div>` : "";
+      // Tooltip = VI title + source (chi tiết ẩn khi hover).
+      const titleTooltip = [
+        titleVi && titleVi !== titleEn ? titleVi : "",
+        j.idea?.type,
+        j.source,
+      ].filter(Boolean).join(" · ");
       card.innerHTML = `
         ${topRow}
-        <div class="title">${escapeHtml(titleEn)}</div>
-        ${titleVn}
-        <div class="meta"><span class="source">${escapeHtml(j.source || "?")}</span>${j.type === "mobile-expo" ? "📱 " : ""}${escapeHtml(j.type || "")}</div>
+        <div class="title"${titleTooltip ? ` title="${escapeHtml(titleTooltip)}"` : ""}>${j.type === "mobile-expo" ? "📱 " : ""}${escapeHtml(titleEn)}</div>
         ${costRow}
         <div class="time ${isLive ? "live" : ""}"${(isLive || waitingRetry) ? ` data-tick="${escapeHtml(tickIso || "")}" data-prefix="${escapeHtml(prefix)}" data-suffix="${escapeHtml(suffix)}"` : ""}>${escapeHtml(timeLabel)}</div>`;
       card.onclick = () => openDrawer(j.id);
