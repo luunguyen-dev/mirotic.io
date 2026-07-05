@@ -402,8 +402,8 @@ function renderEventsDrawer() {
   const executors = Object.entries(counts).sort((a, b) => b[1] - a[1]);
 
   filterEl.innerHTML = `
-    <span class="filter-chip ${eventsFilterExecutor === null ? "active" : ""}" onclick="pickEventsFilter(null)">all<span class="count">${eventsAll.length}</span></span>
-    ${executors.map(([slug, n]) => `<span class="filter-chip ${eventsFilterExecutor === slug ? "active" : ""}" onclick="pickEventsFilter('${escapeHtml(slug)}')">${escapeHtml(slug)}<span class="count">${n}</span></span>`).join("")}
+    <span class="filter-chip ${eventsFilterExecutor === null ? "active" : ""}" onclick="event.stopPropagation(); pickEventsFilter(null)">all<span class="count">${eventsAll.length}</span></span>
+    ${executors.map(([slug, n]) => `<span class="filter-chip ${eventsFilterExecutor === slug ? "active" : ""}" onclick="event.stopPropagation(); pickEventsFilter('${escapeHtml(slug)}')">${escapeHtml(slug)}<span class="count">${n}</span></span>`).join("")}
   `;
 
   const filtered = eventsFilterExecutor ? eventsAll.filter(e => slugOf(e.job_id) === eventsFilterExecutor) : eventsAll;
