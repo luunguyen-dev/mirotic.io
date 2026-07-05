@@ -662,13 +662,15 @@ async function openDrawer(id) {
   // Hero pitch — big italic quote ở đầu Overview để idea đọc lướt cũng nắm.
   const heroBlock = pitchEn ? `<blockquote class="hero-pitch"${pitchVi && pitchVi !== pitchEn ? ` title="${escapeHtml(pitchVi)}"` : ""}>${escapeHtml(pitchEn)}</blockquote>` : "";
 
-  // Compact meta strip — type · hours · source, một dòng.
+  // Compact meta strip — type · hours · source (short). Full source ẩn ở title attr.
+  const srcFull = j.idea?.source || "";
+  const srcShort = srcFull.replace(/^insp:\s*/, "").replace(/\s*\(reframe:.*\)\s*$/, "").slice(0, 40);
   const metaBits = [
     j.idea?.type ? escapeHtml(j.idea.type) : "",
     j.idea?.demo_hours ? `${j.idea.demo_hours}h` : "",
-    j.idea?.source ? escapeHtml(j.idea.source) : "",
+    srcShort ? escapeHtml(srcShort) : "",
   ].filter(Boolean).join(" · ");
-  const metaLine = metaBits ? `<div class="meta-line">${metaBits}</div>` : "";
+  const metaLine = metaBits ? `<div class="meta-line" ${srcFull ? `title="${escapeHtml(srcFull)}"` : ""}>${metaBits}</div>` : "";
 
   const errorBlock = j.error_detail ? `<div class="error-box">
     <div class="lbl">Error</div>
