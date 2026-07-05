@@ -1,98 +1,27 @@
 <!doctype html>
-<html lang="vi" data-theme="light">
+<html lang="vi">
 <head>
 <meta charset="utf-8">
 <title>Mirotic</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  /* ────────── Design tokens (light default; dark override qua [data-theme]) ────────── */
-  :root {
-    --font-ui: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "SF Pro", system-ui, sans-serif;
-    --font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
-    /* Light palette */
-    --app-bg: #f5f6f8;
-    --card: #ffffff;
-    --border: #e6e8ec;
-    --text: #3a3d42;
-    --text-strong: #101216;
-    --muted: #6b7076;
-    --faint: #9096a0;
-    --bar-track: #eef0f3;
-    --topbar: #ffffff;
-    --tab-active-bg: #e7f6ec;
-    --tab-active-text: #1a8f47;
-    --star: #e0a92b;
-    --star-empty: #d3d6db;
-    --cost-text: #9a7205;
-    --cost-bg: #fbf3dd;
-    --signal-text: #1d6fc0;
-    --signal-bg: #e7f0fb;
-    --kpi-green: #2f9e46;
-    /* Stage accents (không đổi giữa 2 theme) */
-    --stage-proposed: #6b7f99;
-    --stage-approved: #2f9e8f;
-    --stage-building: #d2a43a;
-    --stage-demo: #3fb950;
-    --stage-deploy-req: #8a63d2;
-    --stage-deployed: #2ea043;
-    --stage-failed: #e0554f;
-    /* Stack colors */
-    --stack-web: #9a7be0;
-    --stack-cli: #5b95f2;
-    --stack-ext: #c079dd;
-    --stack-mobile: #e39457;
-    /* Control (segmented toggle) */
-    --control-bg: #eef0f3;
-    --control-border: #e6e8ec;
-    --control-active: #ffffff;
-    color-scheme: light;
-  }
-  [data-theme="dark"] {
-    --app-bg: #060708;
-    --card: #0f1116;
-    --border: #1c1f26;
-    --text: #c2c6cc;
-    --text-strong: #f0f2f5;
-    --muted: #8b9096;
-    --faint: #5f656e;
-    --bar-track: #16181d;
-    --topbar: #0a0b0e;
-    --tab-active-bg: #122417;
-    --tab-active-text: #4ec06a;
-    --star: #e8b93b;
-    --star-empty: #3a3d44;
-    --cost-text: #e0bf62;
-    --cost-bg: #211d10;
-    --signal-text: #6aa8e6;
-    --signal-bg: #0f1c2b;
-    --kpi-green: #3fb950;
-    --control-bg: #16181d;
-    --control-border: #1c1f26;
-    --control-active: #22252c;
-    color-scheme: dark;
-  }
+  :root { color-scheme: dark; }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.5 var(--font-ui); background: var(--app-bg); color: var(--text); }
-  header { padding: 0 22px; height: 56px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; background: var(--topbar); }
-  header h1 { font-size: 18px; margin: 0; font-weight: 700; letter-spacing: -0.01em; color: var(--text-strong); }
-  header .nav { color: var(--muted); font-size: 13px; font-weight: 500; text-decoration: none; padding: 6px 14px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; }
-  header .nav.active { background: var(--tab-active-bg); color: var(--tab-active-text); font-weight: 600; }
-  header .nav:not(.active):hover { background: var(--bar-track); color: var(--text); }
-  header .meta { color: var(--muted); font-size: 12px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 6px; }
-  header .meta::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--stage-deployed); box-shadow: 0 0 6px rgba(46,160,67,0.5); animation: pulse 2s infinite; }
-  /* Segmented control cho theme + lang */
-  .segmented { display: inline-flex; background: var(--control-bg); border: 1px solid var(--control-border); border-radius: 9px; padding: 2px; gap: 0; }
-  .segmented button { background: transparent; border: 0; color: var(--muted); font: 500 12px var(--font-ui); padding: 4px 10px; border-radius: 7px; cursor: pointer; min-width: 28px; }
-  .segmented button.active { background: var(--control-active); color: var(--text-strong); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-  .segmented button:hover:not(.active) { color: var(--text); }
-  /* Icon buttons (+ new idea, events, refresh) */
-  header .icon-btn { background: var(--card); color: var(--muted); border: 1px solid var(--border); width: 32px; height: 32px; border-radius: 8px; cursor: pointer; font: inherit; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
-  header .icon-btn:hover { background: var(--bar-track); color: var(--text-strong); }
-  header .icon-btn.primary { background: var(--tab-active-text); border-color: var(--tab-active-text); color: #fff; font-size: 17px; font-weight: 600; }
-  header .icon-btn.primary:hover { filter: brightness(0.92); }
+  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "SF Pro", sans-serif; background: #0b0b0c; color: #e8e8e8; }
+  header { padding: 12px 20px; border-bottom: 1px solid #1c1c1f; display: flex; align-items: center; gap: 10px; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 500; letter-spacing: 0.02em; }
+  header .nav { color: #7ba8e0; font-size: 13px; text-decoration: none; padding: 5px 12px; border-radius: 5px; background: #1c1c1f; border: 1px solid #2a2a2e; display: inline-flex; align-items: center; gap: 4px; }
+  header .nav.active { background: #1f4d39; border-color: #2d6e54; color: #a3d9a5; }
+  header .nav:hover { background: #22222a; }
+  header .nav.active:hover { background: #2a6347; }
+  /* Meta = dot + count + time — subtle, monospace numbers. */
+  header .meta { color: #555; font-size: 11px; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 6px; }
+  header .meta::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #2d6e54; box-shadow: 0 0 6px rgba(45,110,84,0.5); animation: pulse 2s infinite; }
+  /* Icon buttons — square, no text. */
+  header .icon-btn { background: #1c1c1f; color: #aaa; border: 1px solid #2a2a2e; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; font: inherit; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; padding: 0; transition: background 0.1s, color 0.1s; }
+  header .icon-btn:hover { background: #25252a; color: #e8e8e8; }
+  header .icon-btn.primary { background: #1f4d39; border-color: #2d6e54; color: #a3d9a5; font-size: 18px; }
+  header .icon-btn.primary:hover { background: #2a6347; }
   .board { display: grid; grid-template-columns: repeat(7, minmax(200px, 1fr)); gap: 12px; padding: 16px; height: calc(100vh - 113px); overflow-x: auto; }
   .col { background: #111114; border: 1px solid #1c1c1f; border-radius: 8px; display: flex; flex-direction: column; min-height: 0; }
   .col h2 { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin: 0; padding: 10px 12px; border-bottom: 1px solid #1c1c1f; display: flex; justify-content: space-between; }
@@ -343,20 +272,12 @@
 
 <header>
   <h1>Mirotic</h1>
-  <a href="/ideas" class="nav active" data-i18n="nav.ideas">Ideas</a>
-  <a href="/projects" class="nav" data-i18n="nav.projects">Projects</a>
+  <a href="/ideas" class="nav active">Ideas</a>
+  <a href="/projects" class="nav">Projects</a>
   <span style="flex:1"></span>
   <span class="meta" id="meta" title="loading…">—</span>
-  <div class="segmented" id="lang-toggle">
-    <button data-lang="vi">VI</button>
-    <button data-lang="en">EN</button>
-  </div>
-  <div class="segmented" id="theme-toggle">
-    <button data-theme="light" title="Light">☀</button>
-    <button data-theme="dark" title="Dark">☾</button>
-  </div>
   <button class="icon-btn" onclick="openEventsDrawer()" title="Events">📋</button>
-  <button class="icon-btn primary" onclick="openManualModal()" title="New idea">＋</button>
+  <button class="icon-btn" onclick="openManualModal()" title="New idea">＋</button>
   <button class="icon-btn" onclick="load()" title="Refresh">↻</button>
 </header>
 
@@ -393,52 +314,6 @@
 </div>
 
 <script>
-// ────────── i18n + theme state ──────────
-const I18N = {
-  vi: {
-    "nav.ideas": "Ideas", "nav.projects": "Projects",
-    "pipeline.title": "Pipeline",
-    "pipeline.gate": "Gate 24h", "pipeline.conversion": "Chuyển đổi → Demo", "pipeline.deployedToday": "Đã deploy hôm nay",
-    "kpi.total": "Tổng ý tưởng", "kpi.demoReady": "Demo-ready", "kpi.deployed": "Đã deploy", "kpi.gate": "Gate 24h",
-    "spotlight.label": "Tiêu điểm", "spotlight.heatmap": "Nhịp code 24 giờ",
-    "gallery.title": "Tất cả ý tưởng", "gallery.sorted": "xếp theo rating",
-    "stage.proposed": "Đề xuất", "stage.approved": "Đã duyệt", "stage.building": "Đang build",
-    "stage.demo-ready": "Sẵn sàng demo", "stage.deploy-requested": "Chờ deploy",
-    "stage.deployed": "Đã deploy", "stage.failed": "Thất bại / Từ chối",
-  },
-  en: {
-    "nav.ideas": "Ideas", "nav.projects": "Projects",
-    "pipeline.title": "Pipeline",
-    "pipeline.gate": "Gate 24h", "pipeline.conversion": "Conversion → Demo", "pipeline.deployedToday": "Deployed today",
-    "kpi.total": "Total ideas", "kpi.demoReady": "Demo-ready", "kpi.deployed": "Deployed", "kpi.gate": "Gate 24h",
-    "spotlight.label": "Spotlight", "spotlight.heatmap": "24-hour coding rhythm",
-    "gallery.title": "All ideas", "gallery.sorted": "sorted by rating",
-    "stage.proposed": "Proposed", "stage.approved": "Approved", "stage.building": "Building",
-    "stage.demo-ready": "Demo Ready", "stage.deploy-requested": "Deploy Requested",
-    "stage.deployed": "Deployed", "stage.failed": "Failed / Rejected",
-  },
-};
-let LANG = localStorage.getItem("mirotic.lang") || "vi";
-let THEME = localStorage.getItem("mirotic.theme") || "light";
-const t = (key) => I18N[LANG]?.[key] ?? key;
-function applyTheme(theme) {
-  THEME = theme; localStorage.setItem("mirotic.theme", theme);
-  document.documentElement.setAttribute("data-theme", theme);
-  document.querySelectorAll("#theme-toggle button").forEach(b => b.classList.toggle("active", b.dataset.theme === theme));
-}
-function applyLang(lang) {
-  LANG = lang; localStorage.setItem("mirotic.lang", lang);
-  document.documentElement.setAttribute("lang", lang);
-  document.querySelectorAll("#lang-toggle button").forEach(b => b.classList.toggle("active", b.dataset.lang === lang));
-  document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.getAttribute("data-i18n")); });
-  if (typeof load === "function") load();  // re-render với text mới
-}
-document.addEventListener("DOMContentLoaded", () => {
-  applyTheme(THEME); applyLang(LANG);
-  document.querySelectorAll("#theme-toggle button").forEach(b => b.addEventListener("click", () => applyTheme(b.dataset.theme)));
-  document.querySelectorAll("#lang-toggle button").forEach(b => b.addEventListener("click", () => applyLang(b.dataset.lang)));
-});
-
 const COLS = [
   ["proposed", "Proposed"],
   ["approved", "Approved"],
