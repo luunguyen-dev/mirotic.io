@@ -107,8 +107,12 @@
 
   /* Hero pitch — big italic quote highlight cho Overview */
   .drawer .hero-pitch { margin: 0 0 18px; padding: 0 0 0 16px; border-left: 3px solid #7ba8e0; font-size: 17px; line-height: 1.5; color: #e8e8e8; font-style: italic; font-weight: 400; }
-  /* Meta line — compact type · hours · source */
-  .drawer .meta-line { margin-top: 16px; padding: 10px 12px; background: #0a0a0d; border: 1px solid #1c1c1f; border-radius: 5px; color: #888; font-size: 12px; font-family: "SF Mono", Menlo, monospace; }
+  /* Meta list — key/value từng dòng */
+  .drawer .meta-list { margin-top: 16px; background: #0a0a0d; border: 1px solid #1c1c1f; border-radius: 5px; overflow: hidden; }
+  .drawer .meta-list .meta-row { display: flex; gap: 12px; padding: 8px 14px; border-bottom: 1px solid #12121a; font-size: 13px; align-items: baseline; }
+  .drawer .meta-list .meta-row:last-child { border-bottom: none; }
+  .drawer .meta-list .meta-row .k { color: #666; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; min-width: 92px; font-weight: 600; flex-shrink: 0; }
+  .drawer .meta-list .meta-row .v { color: #d8d8d8; word-break: break-word; flex: 1; }
   /* Features as bullet list — cleaner than chips cho long text */
   .drawer .features-list { margin: 0; padding-left: 22px; list-style: none; }
   .drawer .features-list li { position: relative; padding: 5px 0; color: #d8d8d8; font-size: 14px; line-height: 1.45; }
@@ -691,15 +695,14 @@ async function openDrawer(id) {
   // Hero pitch — big italic quote ở đầu Overview để idea đọc lướt cũng nắm.
   const heroBlock = pitchEn ? `<blockquote class="hero-pitch"${pitchVi && pitchVi !== pitchEn ? ` title="${escapeHtml(pitchVi)}"` : ""}>${escapeHtml(pitchEn)}</blockquote>` : "";
 
-  // Compact meta strip — type · hours · source (short). Full source ẩn ở title attr.
+  // Meta list — key-value từng dòng có label.
   const srcFull = j.idea?.source || "";
-  const srcShort = srcFull.replace(/^insp:\s*/, "").replace(/\s*\(reframe:.*\)\s*$/, "").slice(0, 40);
-  const metaBits = [
-    j.idea?.type ? escapeHtml(j.idea.type) : "",
-    j.idea?.demo_hours ? `${j.idea.demo_hours}h` : "",
-    srcShort ? escapeHtml(srcShort) : "",
-  ].filter(Boolean).join(" · ");
-  const metaLine = metaBits ? `<div class="meta-line" ${srcFull ? `title="${escapeHtml(srcFull)}"` : ""}>${metaBits}</div>` : "";
+  const metaRow = (k, v, title) => v ? `<div class="meta-row"${title ? ` title="${escapeHtml(title)}"` : ""}><span class="k">${k}</span><span class="v">${escapeHtml(v)}</span></div>` : "";
+  const metaLine = (j.idea?.type || j.idea?.demo_hours || srcFull) ? `<div class="meta-list">
+    ${metaRow("Type", j.idea?.type || "")}
+    ${metaRow("Demo hours", j.idea?.demo_hours ? `${j.idea.demo_hours}h` : "")}
+    ${metaRow("Source", srcFull, srcFull.length > 60 ? srcFull : "")}
+  </div>` : "";
 
   const errorBlock = j.error_detail ? `<div class="error-box">
     <div class="lbl">Error</div>
