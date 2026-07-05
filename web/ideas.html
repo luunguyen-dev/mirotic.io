@@ -290,6 +290,10 @@
   .drawer .actions a.primary:hover { filter: brightness(0.92); }
   .drawer .actions a.danger { background: color-mix(in srgb, var(--stage-failed) 15%, var(--card)); border-color: color-mix(in srgb, var(--stage-failed) 40%, var(--border)); color: var(--stage-failed); }
   .drawer .actions a.danger:hover { background: color-mix(in srgb, var(--stage-failed) 20%, var(--card)); }
+  .drawer .actions a.retry { background: var(--signal-bg); border-color: color-mix(in srgb, var(--signal-text) 30%, var(--border)); color: var(--signal-text); }
+  .drawer .actions a.retry:hover { background: color-mix(in srgb, var(--signal-text) 12%, var(--card)); }
+  .drawer .actions a.ship { background: color-mix(in srgb, var(--stack-web) 12%, var(--card)); border-color: color-mix(in srgb, var(--stack-web) 35%, var(--border)); color: var(--stack-web); }
+  .drawer .actions a.ship:hover { background: color-mix(in srgb, var(--stack-web) 18%, var(--card)); }
   .empty { color: var(--faint); font-size: 11px; padding: 12px; text-align: center; }
 
   /* Log tail — tokens */
@@ -1028,12 +1032,12 @@ async function openDrawer(id) {
     const failedSteps = (j.plan?.steps ?? []).filter(s => s.status === "failed");
     if (failedSteps.length) {
       const list = failedSteps.map(s => s.key).join(", ");
-      actions.push(`<a onclick="doAction('${id}','retry','${j.signs.retry}')" title="Retry: ${list}" style="background:#2a3a4a;border-color:#3a5a7a;color:#7bd0e0">↻ Retry ${failedSteps.length} failed step${failedSteps.length > 1 ? "s" : ""}</a>`);
+      actions.push(`<a class="retry" onclick="doAction('${id}','retry','${j.signs.retry}')" title="Retry: ${list}">↻ Retry ${failedSteps.length} failed step${failedSteps.length > 1 ? "s" : ""}</a>`);
     }
   }
   // Ship to Project: chỉ khi đã deployed thành công (production URL live).
   if (j.status === "deployed") {
-    actions.push(`<a onclick="doPromote('${id}','${j.signs.promote}')" style="background:#3a2a4a;border-color:#5a4a7a;color:#d0b8ff">Ship to Project</a>`);
+    actions.push(`<a class="ship" onclick="doPromote('${id}','${j.signs.promote}')">Ship to Project</a>`);
   }
   // Retry cho failed / rejected / approved-waiting-retry / building (stuck) / deploying (stuck).
   const nowIso = new Date().toISOString();
@@ -1041,12 +1045,12 @@ async function openDrawer(id) {
   const isStuck = ["building", "deploying"].includes(j.status);
   if (["failed", "rejected"].includes(j.status) || waitingRetry) {
     const label = waitingRetry ? "Retry now (skip wait)" : "Retry";
-    actions.push(`<a onclick="doAction('${id}','retry','${j.signs.retry}')" style="background:#2a3a4a;border-color:#3a5a7a;color:#7bd0e0">↻ ${label}</a>`);
+    actions.push(`<a class="retry" onclick="doAction('${id}','retry','${j.signs.retry}')">↻ ${label}</a>`);
   }
   // Building/deploying: cho phép Cancel (mark failed) + Retry (reset plan + approved).
   if (isStuck) {
     actions.push(`<a onclick="doAction('${id}','cancel','${j.signs.cancel}')" class="danger">✕ Cancel</a>`);
-    actions.push(`<a onclick="doAction('${id}','retry','${j.signs.retry}')" style="background:#2a3a4a;border-color:#3a5a7a;color:#7bd0e0">↻ Retry from scratch</a>`);
+    actions.push(`<a class="retry" onclick="doAction('${id}','retry','${j.signs.retry}')">↻ Retry from scratch</a>`);
   }
   // builder_model = null → auto (registry chọn). builder_model_used = model thực sự đã dùng.
   // Auto mode: hiển thị "Auto" chính + "(Sonnet 5)" dimmer bên phải khi đã resolved.
