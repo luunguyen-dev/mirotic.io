@@ -86,7 +86,9 @@
   .drawer-header .builder-chip { font-size: 12px; color: #888; margin-left: auto; }
   /* Type chip — theo loại project */
   .drawer-header .type-chip { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 500; letter-spacing: 0.03em; background: #2a1e3a; color: #c9a3e0; border: 1px solid #4a3568; }
-  /* Cost chip — turns · $X */
+  /* Turns chip — số conversation turns (neutral blue) */
+  .drawer-header .turns-chip { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 500; background: #1e2f3f; color: #7ba8e0; border: 1px solid #2d4a6a; font-variant-numeric: tabular-nums; }
+  /* Cost chip — USD (gold) */
   .drawer-header .cost-chip { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 500; background: #3a3220; color: #e0d47b; border: 1px solid #5a4a2a; font-variant-numeric: tabular-nums; }
 
   /* Tabs */
@@ -723,7 +725,8 @@ async function openDrawer(id) {
         ${statusBadge}
         ${stars ? `<span class="stars">${stars}</span>` : ""}
         ${j.idea?.type ? `<span class="type-chip">${escapeHtml(j.idea.type)}</span>` : ""}
-        ${(j.total_turns || j.total_cost_usd) ? `<span class="cost-chip" title="Cộng dồn từ mọi gstack session">${j.total_turns || 0} turns · $${(j.total_cost_usd ?? 0).toFixed(4)}</span>` : ""}
+        ${j.total_turns ? `<span class="turns-chip" title="Total conversation turns qua mọi gstack session">${j.total_turns} turns</span>` : ""}
+        ${j.total_cost_usd ? `<span class="cost-chip" title="USD cộng dồn từ mọi gstack session">$${j.total_cost_usd.toFixed(4)}</span>` : ""}
         ${builderChip}
       </div>
     </div>
