@@ -191,9 +191,16 @@
   .picker .menu .item { padding: 6px 10px; border-radius: 4px; cursor: pointer; }
   .picker .menu .item:hover { background: #2a2a2e; }
   .picker .menu .item.selected { background: #1f4d39; }
-  .card .time { font-size: 10px; color: #555; margin-top: 4px; }
+  .card .time { font-size: 10px; color: #555; margin-top: 6px; }
   .card .time.live { color: #e0d47b; font-weight: 500; }
-  .card .cost { font-size: 10px; color: #7a8a9a; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  /* Card pitch — italic subtitle 1-liner từ Prototyper */
+  .card .pitch { font-size: 11.5px; color: #999; font-style: italic; line-height: 1.4; margin: 4px 0 6px; word-break: break-word; }
+  /* Card tags — chip row cùng style drawer header */
+  .card .card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .card .chip { padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 500; border: 1px solid; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; white-space: nowrap; }
+  .card .chip.type { background: #2a1e3a; color: #c9a3e0; border-color: #4a3568; }
+  .card .chip.turns { background: #1e2f3f; color: #7ba8e0; border-color: #2d4a6a; }
+  .card .chip.cost { background: #3a3220; color: #e0d47b; border-color: #5a4a2a; }
 
   /* Status bar (system state) */
   .running-bar { padding: 8px 20px; border-bottom: 1px solid #1c1c1f; background: #0f0f12; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; min-height: 40px; font-size: 12px; }
@@ -531,20 +538,29 @@ async function load() {
         : `${prefix}${relTime(tickIso)}${suffix}`;
       const titleEn = j.idea?.title_en || j.title || j.slug || j.id;
       const titleVi = j.idea?.title_vi;
+      const pitchEn = j.idea?.pitch_en || j.idea?.pitch || "";
+      const pitchVi = j.idea?.pitch_vi || "";
       const stars = j.ceo_rating ? "★".repeat(j.ceo_rating) + "☆".repeat(5 - j.ceo_rating) : "";
       const hours = j.idea?.demo_hours ? `${j.idea.demo_hours}h` : "";
       const topRow = stars || hours ? `<div class="top-row"><span class="rating"><span class="stars">${stars}</span></span><span class="hours">${escapeHtml(hours)}</span></div>` : "";
-      const costRow = j.total_cost_usd ? `<div class="cost">$${j.total_cost_usd.toFixed(4)}</div>` : "";
+      // Tag row — type + turns + cost, mỗi cái 1 chip có màu. Cùng style với drawer header.
+      const tagBits = [
+        j.idea?.type ? `<span class="chip type">${escapeHtml(j.idea.type)}</span>` : "",
+        j.total_turns ? `<span class="chip turns">${j.total_turns} turns</span>` : "",
+        j.total_cost_usd ? `<span class="chip cost">$${j.total_cost_usd.toFixed(4)}</span>` : "",
+      ].filter(Boolean).join("");
+      const tagRow = tagBits ? `<div class="card-tags">${tagBits}</div>` : "";
       // Tooltip = VI title + source (chi tiết ẩn khi hover).
       const titleTooltip = [
         titleVi && titleVi !== titleEn ? titleVi : "",
-        j.idea?.type,
         j.source,
       ].filter(Boolean).join(" · ");
+      const pitchBlock = pitchEn ? `<div class="pitch"${pitchVi && pitchVi !== pitchEn ? ` title="${escapeHtml(pitchVi)}"` : ""}>${escapeHtml(pitchEn)}</div>` : "";
       card.innerHTML = `
         ${topRow}
         <div class="title"${titleTooltip ? ` title="${escapeHtml(titleTooltip)}"` : ""}>${j.type === "mobile-expo" ? "📱 " : ""}${escapeHtml(titleEn)}</div>
-        ${costRow}
+        ${pitchBlock}
+        ${tagRow}
         <div class="time ${isLive ? "live" : ""}"${(isLive || waitingRetry) ? ` data-tick="${escapeHtml(tickIso || "")}" data-prefix="${escapeHtml(prefix)}" data-suffix="${escapeHtml(suffix)}"` : ""}>${escapeHtml(timeLabel)}</div>`;
       card.onclick = () => openDrawer(j.id);
       cards.appendChild(card);
