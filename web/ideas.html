@@ -546,11 +546,11 @@ async function load() {
       const stars = j.ceo_rating ? "★".repeat(j.ceo_rating) + "☆".repeat(5 - j.ceo_rating) : "";
       const hours = j.idea?.demo_hours ? `${j.idea.demo_hours}h` : "";
       const topRow = stars || hours ? `<div class="top-row"><span class="rating"><span class="stars">${stars}</span></span><span class="hours">${escapeHtml(hours)}</span></div>` : "";
-      // Tag row — type + turns + cost, mỗi cái 1 chip có màu. Cùng style với drawer header.
+      // Tag row — type + cost + turns. Cost trước turns; turns bỏ chữ "turns"; cost làm tròn 2 chữ số.
       const tagBits = [
         j.idea?.type ? `<span class="chip type">${escapeHtml(j.idea.type)}</span>` : "",
-        j.total_turns ? `<span class="chip turns">${j.total_turns} turns</span>` : "",
-        j.total_cost_usd ? `<span class="chip cost">$${j.total_cost_usd.toFixed(4)}</span>` : "",
+        j.total_cost_usd ? `<span class="chip cost">$${j.total_cost_usd.toFixed(2)}</span>` : "",
+        j.total_turns ? `<span class="chip turns" title="conversation turns">${j.total_turns}</span>` : "",
       ].filter(Boolean).join("");
       const tagRow = tagBits ? `<div class="card-tags">${tagBits}</div>` : "";
       // Tooltip = full title EN + VI + source (chi tiết ẩn khi hover).
@@ -757,8 +757,8 @@ async function openDrawer(id) {
         ${statusBadge}
         ${stars ? `<span class="stars">${stars}</span>` : ""}
         ${j.idea?.type ? `<span class="type-chip">${escapeHtml(j.idea.type)}</span>` : ""}
-        ${j.total_turns ? `<span class="turns-chip" title="Total conversation turns qua mọi gstack session">${j.total_turns} turns</span>` : ""}
-        ${j.total_cost_usd ? `<span class="cost-chip" title="USD cộng dồn từ mọi gstack session">$${j.total_cost_usd.toFixed(4)}</span>` : ""}
+        ${j.total_cost_usd ? `<span class="cost-chip" title="USD cộng dồn từ mọi gstack session">$${j.total_cost_usd.toFixed(2)}</span>` : ""}
+        ${j.total_turns ? `<span class="turns-chip" title="Total conversation turns qua mọi gstack session">${j.total_turns}</span>` : ""}
         ${builderChip}
       </div>
     </div>
