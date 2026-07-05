@@ -278,6 +278,11 @@
   .drawer .url-list .url-row a { color: var(--signal-text); font-size: 13px; text-decoration: none; word-break: break-all; flex: 1; }
   .drawer .url-list .url-row a:hover { text-decoration: underline; }
   .drawer .url-list .url-row .hint { color: var(--faint); font-size: 10px; }
+  .drawer .cli-hint { margin-top: 8px; padding: 10px 12px; background: var(--bar-track); border: 1px solid var(--border); border-left: 3px solid var(--tab-active-text); border-radius: 8px; }
+  .drawer .cli-hint-label { color: var(--tab-active-text); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; margin-bottom: 6px; }
+  .drawer .cli-hint-code { color: var(--text-strong); font-size: 12px; font-family: var(--font-mono); user-select: all; word-break: break-all; display: block; padding: 6px 8px; background: var(--card); border: 1px solid var(--border); border-radius: 6px; }
+  .drawer .cli-hint-note { color: var(--muted); font-size: 11px; margin-top: 6px; }
+  .drawer .url-err { color: var(--stage-failed); font-size: 12px; margin-top: 6px; padding: 4px 12px; }
 
   .drawer .error-box { background: color-mix(in srgb, var(--stage-failed) 8%, var(--card)); border: 1px solid color-mix(in srgb, var(--stage-failed) 25%, var(--border)); border-left: 3px solid var(--stage-failed); border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; }
   .drawer .error-box .lbl { font-size: 10px; text-transform: uppercase; color: var(--stage-failed); font-weight: 600; letter-spacing: 0.08em; margin-bottom: 4px; }
@@ -1300,12 +1305,12 @@ function renderResult(result) {
     <div style="color:#333;font-size:11px;margin-top:6px">Mở app <b>Expo Go</b> → Scan QR</div>
   </div>`);
   // CLI hint — user chạy tay để start Expo tunnel + xem QR (Expo Go).
-  if (result.cliHint) rows.push(`<div style="margin-top:8px;padding:10px 12px;background:#0a0a0d;border:1px solid #2a2a2e;border-radius:5px">
-    <div style="color:#666;font-size:10px;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;margin-bottom:4px">Start Expo tunnel (chạy tay)</div>
-    <code style="color:#7ba8e0;font-size:11px;font-family:'SF Mono',Menlo,monospace;user-select:all;word-break:break-all">${escapeHtml(result.cliHint)}</code>
-    <div style="color:#555;font-size:10px;margin-top:4px">QR code sẽ xuất hiện trong terminal. Mở Expo Go trên điện thoại → Scan.</div>
+  if (result.cliHint) rows.push(`<div class="cli-hint">
+    <div class="cli-hint-label">Start Expo tunnel (chạy tay)</div>
+    <code class="cli-hint-code">${escapeHtml(result.cliHint)}</code>
+    <div class="cli-hint-note">QR code sẽ xuất hiện trong terminal. Mở Expo Go trên điện thoại → Scan.</div>
   </div>`);
-  if (result.error) rows.push(`<div style="color:#e07b7b;font-size:12px;margin-top:6px;padding:4px 12px">${escapeHtml(result.error)}</div>`);
+  if (result.error) rows.push(`<div class="url-err">${escapeHtml(result.error)}</div>`);
   return rows.length ? `<div class="field"><label>Result</label><div class="url-list">${rows.join("")}</div></div>` : "";
 }
 
