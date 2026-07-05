@@ -642,7 +642,7 @@ async function openDrawer(id) {
       <span class="icon">${stepIcon[s.status] || "○"}</span>
       <div style="flex:1"><span>${escapeHtml(s.label_en)}</span><span class="lbl-vi">${escapeHtml(s.label_vi)}</span>${s.note ? `<span class="note">${escapeHtml(s.note)}</span>` : ""}</div>
     </div>`).join("")}</div></div>`
-    : `<div class="field"><label>Progress trace</label><div id="progress-fallback" style="font-family:'SF Mono',Menlo,monospace;font-size:11px;color:#666">loading trace…</div></div>`;
+    : `<div class="field"><label>Events</label><div id="progress-fallback" style="font-family:'SF Mono',Menlo,monospace;font-size:11px;color:#666">loading…</div></div>`;
 
   const failedCount = (j.plan?.steps ?? []).filter(s => s.status === "failed").length;
   const hasError = !!j.error_detail;
@@ -719,12 +719,20 @@ async function loadProgressFallback(jobId) {
   const logs = await fetch(`/api/jobs/${jobId}/logs?since=0`).then(r => r.json()).catch(() => []);
   if (currentDrawerJob !== jobId || !el) return;
   const summary = logs.filter(l => l.level === "summary" || l.level === "error");
-  if (!summary.length) { el.textContent = "chưa có trace"; return; }
-  el.innerHTML = summary.map(l => {
-    const t = new Date(l.ts).toLocaleTimeString("en-GB", { hour12: false });
+  if (!summary.length) { el.textContent = "no events"; return; }
+  const slug = jobId.replace(/^\d{4}-\d{2}-\d{2}-/, "");
+  // Newest at top — matches events drawer.
+  const rows = summary.slice().reverse().map(l => {
+    const d = new Date(l.ts);
+    const ts = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")} ${d.toLocaleTimeString("en-GB", { hour12: false })}`;
     const cls = l.level === "error" ? "color:#e0a0a0" : "color:#a3d9a5";
-    return `<div style="padding:3px 0;${cls}"><span style="color:#555;margin-right:8px">${t}</span>${escapeHtml(l.line || "")}</div>`;
+    return `<tr style="${cls}">
+      <td style="padding:3px 8px 3px 0;color:#555;white-space:nowrap">${ts}</td>
+      <td style="padding:3px 8px;color:#7ba8e0;white-space:nowrap">${escapeHtml(slug)}</td>
+      <td style="padding:3px 0;word-break:break-word">${escapeHtml(l.line || "")}</td>
+    </tr>`;
   }).join("");
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse">${rows}</table>`;
 }
 
 async function pollLogs() {
@@ -811,7 +819,6 @@ function renderResult(result) {
     <code style="color:#7ba8e0;font-size:11px;font-family:'SF Mono',Menlo,monospace;user-select:all;word-break:break-all">${escapeHtml(result.cliHint)}</code>
     <div style="color:#555;font-size:10px;margin-top:4px">QR code sẽ xuất hiện trong terminal. Mở Expo Go trên điện thoại → Scan.</div>
   </div>`);
-  if (result.publicPort) rows.push(`<div style="color:#666;font-size:11px;padding:4px 12px">host port: ${result.publicPort}</div>`);
   if (result.error) rows.push(`<div style="color:#e07b7b;font-size:12px;margin-top:6px;padding:4px 12px">${escapeHtml(result.error)}</div>`);
   return rows.length ? `<div class="field"><label>Result</label><div class="url-list">${rows.join("")}</div></div>` : "";
 }
