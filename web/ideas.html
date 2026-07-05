@@ -98,7 +98,7 @@
   .dashboard { display: grid; grid-template-columns: 308px 1fr; gap: 22px; padding: 22px; height: calc(100vh - 56px); overflow: hidden; }
   .sidebar, .main-col { overflow-y: auto; min-width: 0; }
   .main-col { display: flex; flex-direction: column; gap: 18px; padding-right: 4px; }
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; }
+  .d-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; }
   .section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); padding: 16px 18px 8px; }
 
   /* Pipeline funnel */
@@ -428,7 +428,7 @@
 <!-- ═══════════ New dashboard layout ═══════════ -->
 <div class="dashboard">
   <aside class="sidebar">
-    <div class="card funnel-card">
+    <div class="d-card funnel-card">
       <div class="section-title" data-i18n="pipeline.title">Pipeline</div>
       <div id="funnel-bars"></div>
       <div class="funnel-footer">
@@ -441,13 +441,13 @@
 
   <main class="main-col">
     <div class="kpi-row">
-      <div class="card kpi"><div class="kpi-value" id="kpi-total">—</div><div class="kpi-label" data-i18n="kpi.total">Tổng ý tưởng</div></div>
-      <div class="card kpi"><div class="kpi-value green" id="kpi-demo">—</div><div class="kpi-label" data-i18n="kpi.demoReady">Demo-ready</div></div>
-      <div class="card kpi"><div class="kpi-value" id="kpi-deployed">—</div><div class="kpi-label" data-i18n="kpi.deployed">Đã deploy</div></div>
-      <div class="card kpi"><div class="kpi-value" id="kpi-gate">—</div><div class="kpi-label" data-i18n="kpi.gate">Gate 24h</div></div>
+      <div class="d-card kpi"><div class="kpi-value" id="kpi-total">—</div><div class="kpi-label" data-i18n="kpi.total">Tổng ý tưởng</div></div>
+      <div class="d-card kpi"><div class="kpi-value green" id="kpi-demo">—</div><div class="kpi-label" data-i18n="kpi.demoReady">Demo-ready</div></div>
+      <div class="d-card kpi"><div class="kpi-value" id="kpi-deployed">—</div><div class="kpi-label" data-i18n="kpi.deployed">Đã deploy</div></div>
+      <div class="d-card kpi"><div class="kpi-value" id="kpi-gate">—</div><div class="kpi-label" data-i18n="kpi.gate">Gate 24h</div></div>
     </div>
 
-    <div class="card spotlight" id="spotlight"></div>
+    <div class="d-card spotlight" id="spotlight"></div>
 
     <div class="gallery">
       <div class="gallery-head">
