@@ -85,6 +85,17 @@ CREATE TABLE IF NOT EXISTS job_logs (
 );
 CREATE INDEX IF NOT EXISTS job_logs_job_idx ON job_logs (job_id, id);
 
+-- system_events: batch-level activity không gắn với 1 job cụ thể.
+-- Actor = prototyper | ceo | planner | poller | auto-approve | deployer.
+CREATE TABLE IF NOT EXISTS system_events (
+  id     BIGSERIAL PRIMARY KEY,
+  ts     TEXT NOT NULL,
+  actor  TEXT NOT NULL,
+  level  TEXT DEFAULT 'info',   -- info | summary | error
+  line   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS system_events_id_idx ON system_events (id DESC);
+
 -- model_cooldowns: per-model rate-limit tracking, survive worker restart.
 CREATE TABLE IF NOT EXISTS model_cooldowns (
   model TEXT PRIMARY KEY, cooldown_until TEXT NOT NULL, reason TEXT, updated_at TEXT NOT NULL
