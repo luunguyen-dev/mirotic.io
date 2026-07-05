@@ -180,18 +180,22 @@
   .running-bar .none { color: #555; font-style: italic; font-size: 11px; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-  /* Event stream — latest system events line by line */
-  .event-stream { background: #0a0a0d; border-bottom: 1px solid #1c1c1f; max-height: 140px; overflow-y: auto; font-family: "SF Mono", Menlo, monospace; font-size: 11px; }
-  .event-stream .empty { color: #555; padding: 8px 20px; font-style: italic; }
-  .event-stream .event { display: flex; gap: 12px; padding: 3px 20px; cursor: pointer; border-left: 2px solid transparent; transition: background 0.1s; }
-  .event-stream .event:hover { background: #12121a; }
-  .event-stream .event.error { border-left-color: #6e2d2d; }
-  .event-stream .event.summary { border-left-color: #2d6e54; }
-  .event-stream .event .t { color: #666; flex-shrink: 0; }
-  .event-stream .event .j { color: #7ba8e0; min-width: 180px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .event-stream .event .msg { color: #ccc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-  .event-stream .event.error .msg { color: #e0a0a0; }
-  .event-stream .event.summary .msg { color: #a3d9a5; }
+  /* Events drawer — table format với date + executor + msg */
+  #events-drawer .filter-chip { padding: 3px 10px; border-radius: 12px; font-size: 11px; cursor: pointer; background: #1a1a1e; border: 1px solid #2a2a2e; color: #ccc; user-select: none; }
+  #events-drawer .filter-chip:hover { background: #22222a; }
+  #events-drawer .filter-chip.active { background: #1e2f3f; border-color: #7ba8e0; color: #7ba8e0; }
+  #events-drawer .filter-chip .count { color: #666; font-size: 10px; margin-left: 4px; }
+  #events-drawer .filter-chip.active .count { color: #7ba8e0; }
+  #events-table th { text-align: left; padding: 8px 14px; color: #666; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; background: #0a0a0d; position: sticky; top: 0; border-bottom: 1px solid #1c1c1f; }
+  #events-table td { padding: 5px 14px; border-bottom: 1px solid #12121a; vertical-align: top; }
+  #events-table tr { cursor: pointer; }
+  #events-table tr:hover td { background: #12121a; }
+  #events-table td.ts { color: #666; white-space: nowrap; }
+  #events-table td.exec { color: #7ba8e0; white-space: nowrap; }
+  #events-table td.msg { color: #ccc; word-break: break-word; }
+  #events-table tr.error td.exec { color: #e07b7b; }
+  #events-table tr.summary td.msg { color: #a3d9a5; }
+  #events-table tr.error td.msg { color: #e0a0a0; }
 
   /* Manual idea modal */
   .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 50; align-items: center; justify-content: center; }
@@ -219,6 +223,7 @@
   <a href="/projects" style="color:#7ba8e0;font-size:13px;text-decoration:none;padding:4px 10px;border-radius:5px;background:#1c1c1f;border:1px solid #2a2a2e">📂 Projects</a>
   <span class="meta" id="meta">loading…</span>
   <span style="flex:1"></span>
+  <button onclick="openEventsDrawer()" title="System event stream">📋 events</button>
   <button onclick="openManualModal()" style="background:#1f4d39;border:1px solid #2d6e54;color:#a3d9a5">+ new idea</button>
   <button onclick="load()">↻ refresh</button>
 </header>
@@ -238,7 +243,20 @@
 </div>
 
 <div class="running-bar" id="running-bar"></div>
-<div class="event-stream" id="event-stream"><div class="empty">loading…</div></div>
+
+<div class="drawer" id="events-drawer">
+  <button class="close" onclick="closeEventsDrawer()">×</button>
+  <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
+    <div class="drawer-header">
+      <h3>System events</h3>
+      <div class="title-vi">Trace mọi summary + error từ mọi job</div>
+    </div>
+    <div id="events-filter" style="padding:10px 24px;border-bottom:1px solid #1c1c1f;display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0"></div>
+    <div class="drawer-body" style="padding:0">
+      <table id="events-table" style="width:100%;border-collapse:collapse;font-family:'SF Mono',Menlo,monospace;font-size:11px"></table>
+    </div>
+  </div>
+</div>
 
 <div class="board" id="board"></div>
 <div class="drawer" id="drawer">
@@ -354,30 +372,68 @@ async function renderStatusBar() {
   bar.innerHTML = `${gate}${nextSlotStat}<span class="sep"></span>${queue}${modelCoolStat}${retryStat}`;
 }
 
-// Event stream — cross-cut summary+error logs mọi job, latest at top, tick every 5s.
-let eventLatestId = 0;
-let eventInitialLoaded = false;
-async function renderEventStream() {
-  const el = document.getElementById("event-stream");
-  if (!el) return;
+// Events drawer — cross-cut summary+error mọi job. Filter theo executor slug.
+let eventsAll = [];
+let eventsFilterExecutor = null;   // null = all, else slug
+let eventsDrawerOpen = false;
+
+async function fetchEvents() {
   try {
-    const events = await fetch(`/api/events?limit=50`).then(r => r.json());
-    if (!events?.length) {
-      if (!eventInitialLoaded) el.innerHTML = `<div class="empty">chưa có sự kiện</div>`;
-      return;
-    }
-    eventInitialLoaded = true;
-    // Reverse để hiển thị newest at top (getEvents returns DESC).
-    el.innerHTML = events.map(e => {
-      const t = new Date(e.ts).toLocaleTimeString("en-GB", { hour12: false });
-      const slug = (e.job_id || "").replace(/^\d{4}-\d{2}-\d{2}-/, "");
+    eventsAll = await fetch(`/api/events?limit=200`).then(r => r.json()) ?? [];
+  } catch { eventsAll = []; }
+}
+
+function slugOf(jobId) {
+  return (jobId || "").replace(/^\d{4}-\d{2}-\d{2}-/, "");
+}
+
+function renderEventsDrawer() {
+  if (!eventsDrawerOpen) return;
+  const filterEl = document.getElementById("events-filter");
+  const tableEl = document.getElementById("events-table");
+  if (!filterEl || !tableEl) return;
+
+  // Executor counts (dedup slug from events).
+  const counts = {};
+  for (const e of eventsAll) {
+    const s = slugOf(e.job_id);
+    counts[s] = (counts[s] || 0) + 1;
+  }
+  const executors = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+  filterEl.innerHTML = `
+    <span class="filter-chip ${eventsFilterExecutor === null ? "active" : ""}" onclick="pickEventsFilter(null)">all<span class="count">${eventsAll.length}</span></span>
+    ${executors.map(([slug, n]) => `<span class="filter-chip ${eventsFilterExecutor === slug ? "active" : ""}" onclick="pickEventsFilter('${escapeHtml(slug)}')">${escapeHtml(slug)}<span class="count">${n}</span></span>`).join("")}
+  `;
+
+  const filtered = eventsFilterExecutor ? eventsAll.filter(e => slugOf(e.job_id) === eventsFilterExecutor) : eventsAll;
+  tableEl.innerHTML = `
+    <thead><tr><th style="min-width:140px">Time</th><th style="min-width:160px">Executor</th><th>Message</th></tr></thead>
+    <tbody>${filtered.map(e => {
+      const d = new Date(e.ts);
+      const ts = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")} ${d.toLocaleTimeString("en-GB", { hour12: false })}`;
+      const slug = slugOf(e.job_id);
       const cls = e.level === "error" ? "error" : "summary";
-      return `<div class="event ${cls}" onclick="openDrawer('${escapeHtml(e.job_id)}')">
-        <span class="t">${t}</span><span class="j">${escapeHtml(slug)}</span><span class="msg">${escapeHtml(e.line || "")}</span>
-      </div>`;
-    }).join("");
-    eventLatestId = events[0]?.id ?? eventLatestId;
-  } catch {}
+      return `<tr class="${cls}" onclick="closeEventsDrawer(); openDrawer('${escapeHtml(e.job_id)}')">
+        <td class="ts">${ts}</td><td class="exec">${escapeHtml(slug)}</td><td class="msg">${escapeHtml(e.line || "")}</td>
+      </tr>`;
+    }).join("")}</tbody>`;
+}
+
+function pickEventsFilter(slug) {
+  eventsFilterExecutor = slug;
+  renderEventsDrawer();
+}
+
+async function openEventsDrawer() {
+  eventsDrawerOpen = true;
+  document.getElementById("events-drawer").classList.add("open");
+  await fetchEvents();
+  renderEventsDrawer();
+}
+function closeEventsDrawer() {
+  eventsDrawerOpen = false;
+  document.getElementById("events-drawer").classList.remove("open");
 }
 
 // Filter state cho board — click stat trong running-bar để set/clear.
@@ -391,7 +447,8 @@ async function load() {
   const jobs = await fetch("/api/jobs").then(r => r.json());
   document.getElementById("meta").textContent = `${jobs.length} jobs · refreshed ${new Date().toLocaleTimeString("en-GB", { hour12: false })}`;
   renderStatusBar();
-  renderEventStream();
+  // Nếu events drawer đang mở, refresh nội dung.
+  if (eventsDrawerOpen) fetchEvents().then(renderEventsDrawer);
   const board = document.getElementById("board");
   board.innerHTML = "";
   for (const [key, label] of COLS) {
@@ -812,7 +869,8 @@ document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
   const modal = document.getElementById("manual-backdrop");
   if (modal.classList.contains("open")) return closeManualModal();
-  // ESC: đóng drawer trước, nếu không mở thì clear filter.
+  if (eventsDrawerOpen) return closeEventsDrawer();
+  // ESC: đóng job drawer trước, nếu không mở thì clear filter.
   if (document.getElementById("drawer").classList.contains("open")) return closeDrawer();
   if (filterStatus) { filterStatus = null; load(); }
 });
@@ -820,6 +878,12 @@ document.addEventListener("keydown", e => {
 // Bỏ qua click trên card/pill — chúng tự openDrawer với id mới.
 document.addEventListener("click", e => {
   const drawer = document.getElementById("drawer");
+  const eventsDrawer = document.getElementById("events-drawer");
+  // Events drawer outside click → close.
+  if (eventsDrawerOpen && !eventsDrawer.contains(e.target) && !e.target.closest("button")) {
+    closeEventsDrawer();
+    return;
+  }
   if (!drawer.classList.contains("open")) return;
   if (drawer.contains(e.target)) return;
   if (e.target.closest(".card, .pill")) return;
@@ -827,8 +891,8 @@ document.addEventListener("click", e => {
 });
 load();
 setInterval(load, 15_000);
-// Event stream tick nhanh hơn để thấy sự kiện mới trong lúc build đang chạy.
-setInterval(renderEventStream, 5_000);
+// Events drawer tick nhanh hơn khi đang mở.
+setInterval(() => { if (eventsDrawerOpen) fetchEvents().then(renderEventsDrawer); }, 5_000);
 // Tick mỗi 1s để elapsed time của job đang chạy + countdown model cool cập nhật mượt.
 setInterval(() => {
   document.querySelectorAll("[data-tick]").forEach(el => {
