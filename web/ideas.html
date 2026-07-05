@@ -536,8 +536,10 @@ async function load() {
       const timeLabel = waitingRetry
         ? `${prefix}${Math.max(0, Math.floor((new Date(j.retry_after).getTime() - Date.now())/60000))}m`
         : `${prefix}${relTime(tickIso)}${suffix}`;
-      const titleEn = j.idea?.title_en || j.title || j.slug || j.id;
-      const titleVi = j.idea?.title_vi;
+      const titleRaw = j.idea?.title_en || j.title || j.slug || j.id;
+      // Strip em-dash tagline khỏi title: "Name — tagline" → "Name". Prototyper cũ ra format này.
+      const titleEn = titleRaw.split(/\s+[—–-]\s+/)[0].trim() || titleRaw;
+      const titleVi = (j.idea?.title_vi || "").split(/\s+[—–-]\s+/)[0].trim();
       const pitchEn = j.idea?.pitch_en || j.idea?.pitch || "";
       const pitchVi = j.idea?.pitch_vi || "";
       const stars = j.ceo_rating ? "★".repeat(j.ceo_rating) + "☆".repeat(5 - j.ceo_rating) : "";
@@ -550,9 +552,10 @@ async function load() {
         j.total_cost_usd ? `<span class="chip cost">$${j.total_cost_usd.toFixed(4)}</span>` : "",
       ].filter(Boolean).join("");
       const tagRow = tagBits ? `<div class="card-tags">${tagBits}</div>` : "";
-      // Tooltip = VI title + source (chi tiết ẩn khi hover).
+      // Tooltip = full title EN + VI + source (chi tiết ẩn khi hover).
       const titleTooltip = [
-        titleVi && titleVi !== titleEn ? titleVi : "",
+        titleRaw !== titleEn ? titleRaw : "",
+        j.idea?.title_vi && j.idea?.title_vi !== titleRaw ? j.idea.title_vi : "",
         j.source,
       ].filter(Boolean).join(" · ");
       const pitchBlock = pitchEn ? `<div class="pitch"${pitchVi && pitchVi !== pitchEn ? ` title="${escapeHtml(pitchVi)}"` : ""}>${escapeHtml(pitchEn)}</div>` : "";
@@ -662,8 +665,11 @@ async function openDrawer(id) {
       : "";
     return `<div class="sub" style="margin-top:-8px">Builder: ${renderModelLabel({ name: "Auto" })}${resolved}</div>`;
   })();
-  const titleEn = j.idea?.title_en || j.idea?.title || j.id;
-  const titleVi = j.idea?.title_vi || j.idea?.title || "";
+  const titleRawEn = j.idea?.title_en || j.idea?.title || j.id;
+  const titleRawVi = j.idea?.title_vi || j.idea?.title || "";
+  // Strip em-dash tagline: "Name — tagline" → "Name". Full title vào tooltip.
+  const titleEn = titleRawEn.split(/\s+[—–-]\s+/)[0].trim() || titleRawEn;
+  const titleVi = titleRawVi.split(/\s+[—–-]\s+/)[0].trim() || titleRawVi;
   const pitchEn = j.idea?.pitch_en || j.idea?.pitch || "";
   const pitchVi = j.idea?.pitch_vi || j.idea?.pitch || "";
   const whyEn = j.idea?.why_en || j.idea?.why || "";
@@ -743,8 +749,8 @@ async function openDrawer(id) {
 
   content.innerHTML = `
     <div class="drawer-header">
-      <h3>${escapeHtml(titleEn)}</h3>
-      ${titleVi && titleVi !== titleEn ? `<div class="title-vi">${escapeHtml(titleVi)}</div>` : ""}
+      <h3${titleRawEn !== titleEn ? ` title="${escapeHtml(titleRawEn)}"` : ""}>${escapeHtml(titleEn)}</h3>
+      ${titleVi && titleVi !== titleEn ? `<div class="title-vi"${titleRawVi !== titleVi ? ` title="${escapeHtml(titleRawVi)}"` : ""}>${escapeHtml(titleVi)}</div>` : ""}
       <div class="meta-row">
         ${statusBadge}
         ${stars ? `<span class="stars">${stars}</span>` : ""}

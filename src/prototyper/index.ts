@@ -231,7 +231,7 @@ Nhiệm vụ: sinh ra ${n} idea GỐC. Có thể:
 - Tự sáng tạo không dựa vào signal nào — nếu bạn thấy có ý hay hơn
 
 TIÊU CHÍ CHẤT LƯỢNG (quan trọng — tránh idea "chán"):
-- **Cụ thể**: title phải là tên product, KHÔNG phải mô tả generic ("AI Todo Wrapper" ❌, "Standup — 5-min voice memo → team digest" ✓)
+- **Cụ thể**: title_en/title_vi chỉ là **tên product ngắn gọn**, KHÔNG kèm em-dash + tagline. Tagline đã có ở `pitch_en` riêng. Ví dụ: title="Standup" ✓, KHÔNG "Standup — 5-min voice memo" ❌ (redundant với pitch).
 - **Có góc riêng**: nêu rõ 1 điểm khác biệt với các tool cùng lĩnh vực đã có
 - **Buildable 1 ngày**: 2-24h, KHÔNG cần API/data khó xin, KHÔNG scope > 1 người 1 ngày
 - **Target user cụ thể**: "developers debugging..." ❌ vague; "SREs chăm 3 microservices Go, không muốn attach debugger" ✓; "mẹ 2 con lập menu tuần Chủ Nhật" ✓
@@ -381,7 +381,7 @@ export async function expandUserIdea(input: string): Promise<ScoredIdea> {
 Nhiệm vụ: enrich thành 1 idea GỐC đầy đủ. Nếu user chỉ cho keyword, tự sáng tạo product cụ thể xoay quanh keyword đó. Nếu user đã có description, giữ ý user và cấu trúc lại theo schema.
 
 TIÊU CHÍ (giữ nguyên chất lượng như batch):
-- title là tên product CỤ THỂ, không generic.
+- title_en/title_vi chỉ là **tên product ngắn** (KHÔNG em-dash + tagline — tagline đã ở pitch riêng).
 - Có góc riêng vs. tool cùng lĩnh vực.
 - Buildable 1 ngày (2-24h).
 - Target user cụ thể.
