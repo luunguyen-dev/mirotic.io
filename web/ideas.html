@@ -446,8 +446,12 @@ function renderEventsDrawer() {
     counts[s] = (counts[s] || 0) + 1;
     if (!(s in firstSeen)) firstSeen[s] = i;
   });
-  // Sort: executor có event mới nhất → lên đầu. Chip đầu tiên thường là job đang building/vừa deploy.
-  const executors = Object.entries(counts).sort((a, b) => firstSeen[a[0]] - firstSeen[b[0]]);
+  // Sort: chip đang selected pin vị trí 2 (ngay sau "all"); còn lại sort theo event mới nhất.
+  const executors = Object.entries(counts).sort((a, b) => {
+    if (a[0] === eventsFilterExecutor) return -1;
+    if (b[0] === eventsFilterExecutor) return 1;
+    return firstSeen[a[0]] - firstSeen[b[0]];
+  });
 
   filterEl.innerHTML = `
     <span class="filter-chip ${eventsFilterExecutor === null ? "active" : ""}" onclick="event.stopPropagation(); pickEventsFilter(null)">all<span class="count">${eventsAll.length}</span></span>
