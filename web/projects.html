@@ -1,90 +1,197 @@
 <!doctype html>
-<html lang="vi">
+<html lang="vi" data-theme="light">
 <head>
 <meta charset="utf-8">
 <title>Mirotic — Projects</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root { color-scheme: dark; }
+  :root {
+    --font-ui: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "SF Pro", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    --app-bg: #f5f6f8;
+    --card: #ffffff;
+    --border: #e6e8ec;
+    --text: #3a3d42;
+    --text-strong: #101216;
+    --muted: #6b7076;
+    --faint: #9096a0;
+    --bar-track: #eef0f3;
+    --topbar: #ffffff;
+    --tab-active-bg: #e7f6ec;
+    --tab-active-text: #1a8f47;
+    --stage-proposed: #6b7f99;
+    --stage-approved: #2f9e8f;
+    --stage-building: #d2a43a;
+    --stage-demo: #3fb950;
+    --stage-deploy-req: #8a63d2;
+    --stage-deployed: #2ea043;
+    --stage-failed: #e0554f;
+    --stack-web: #9a7be0;
+    --stack-cli: #5b95f2;
+    --stack-ext: #c079dd;
+    --stack-mobile: #e39457;
+    --signal-text: #1d6fc0;
+    --signal-bg: #e7f0fb;
+    --cost-text: #9a7205;
+    --cost-bg: #fbf3dd;
+    --star: #e0a92b;
+    --control-bg: #eef0f3;
+    --control-border: #e6e8ec;
+    --control-active: #ffffff;
+    color-scheme: light;
+  }
+  [data-theme="dark"] {
+    --app-bg: #060708; --card: #0f1116; --border: #1c1f26;
+    --text: #c2c6cc; --text-strong: #f0f2f5; --muted: #8b9096; --faint: #5f656e;
+    --bar-track: #16181d; --topbar: #0a0b0e;
+    --tab-active-bg: #122417; --tab-active-text: #4ec06a;
+    --signal-text: #6aa8e6; --signal-bg: #0f1c2b;
+    --cost-text: #e0bf62; --cost-bg: #211d10;
+    --star: #e8b93b;
+    --control-bg: #16181d; --control-border: #1c1f26; --control-active: #22252c;
+    color-scheme: dark;
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "SF Pro", sans-serif; background: #0b0b0c; color: #e8e8e8; }
-  header { padding: 12px 20px; border-bottom: 1px solid #1c1c1f; display: flex; align-items: center; gap: 10px; }
-  header h1 { font-size: 16px; margin: 0; font-weight: 500; letter-spacing: 0.02em; }
-  header .nav { color: #7ba8e0; font-size: 13px; text-decoration: none; padding: 5px 12px; border-radius: 5px; background: #1c1c1f; border: 1px solid #2a2a2e; }
-  header .nav.active { background: #1f4d39; border-color: #2d6e54; color: #a3d9a5; }
-  header .nav:hover { background: #22222a; }
-  header .nav.active:hover { background: #2a6347; }
-  header .meta { color: #555; font-size: 11px; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 6px; }
-  header .meta::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #2d6e54; box-shadow: 0 0 6px rgba(45,110,84,0.5); animation: pulse 2s infinite; }
+  body { margin: 0; font: 14px/1.5 var(--font-ui); background: var(--app-bg); color: var(--text); }
+  header { padding: 0 22px; height: 56px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; background: var(--topbar); }
+  header h1 { font-size: 18px; margin: 0; font-weight: 700; letter-spacing: -0.01em; color: var(--text-strong); }
+  header .nav { color: var(--muted); font-size: 13px; font-weight: 500; text-decoration: none; padding: 6px 14px; border-radius: 999px; }
+  header .nav.active { background: var(--tab-active-bg); color: var(--tab-active-text); font-weight: 600; }
+  header .nav:not(.active):hover { background: var(--bar-track); color: var(--text); }
+  header .meta { color: var(--muted); font-size: 12px; font-family: var(--font-mono); display: inline-flex; align-items: center; gap: 6px; }
+  header .meta::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--stage-deployed); box-shadow: 0 0 6px rgba(46,160,67,0.5); animation: pulse 2s infinite; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .segmented { display: inline-flex; background: var(--control-bg); border: 1px solid var(--control-border); border-radius: 9px; padding: 2px; }
+  .segmented button { background: transparent; border: 0; color: var(--muted); font: 500 12px var(--font-ui); padding: 4px 10px; border-radius: 7px; cursor: pointer; min-width: 28px; }
+  .segmented button.active { background: var(--control-active); color: var(--text-strong); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+  .segmented button:hover:not(.active) { color: var(--text); }
 
-  main { padding: 20px; }
+  main { padding: 22px; }
+  h2, h3 { color: var(--text-strong); }
+
+  /* Empty state */
+  .empty-state { color: var(--muted); text-align: center; padding: 80px 20px; }
+  .empty-state .big { font-size: 18px; font-weight: 600; color: var(--text-strong); margin-bottom: 10px; }
+  .empty-state a { color: var(--tab-active-text); text-decoration: none; font-weight: 500; }
+  .empty-state code { background: var(--bar-track); padding: 1px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 12px; }
 
   /* Project tiles */
-  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-  .tile { background: #111114; border: 1px solid #2a2a2e; border-radius: 8px; padding: 14px 16px; cursor: pointer; transition: background 0.1s; }
-  .tile:hover { background: #17171b; border-color: #3a3a40; }
-  .tile h3 { margin: 0; font-size: 15px; font-weight: 500; }
-  .tile .sub { color: #888; font-size: 11px; margin-top: 2px; font-style: italic; }
-  .tile .desc { margin-top: 8px; font-size: 12px; color: #a0a0a0; line-height: 1.4; max-height: 4em; overflow: hidden; }
-  .tile .footer { margin-top: 10px; display: flex; gap: 12px; font-size: 11px; color: #666; }
-  .tile .footer a { color: #7ba8e0; text-decoration: none; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .tile { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; cursor: pointer; transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s; }
+  .tile:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(20,22,26,0.06); border-color: color-mix(in srgb, var(--tab-active-text) 25%, var(--border)); }
+  .tile h3 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.005em; }
+  .tile .sub { color: var(--muted); font-size: 11px; margin-top: 2px; font-style: italic; }
+  .tile .desc { margin-top: 10px; font-size: 12.5px; color: var(--muted); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .tile .footer { margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; font-size: 11px; color: var(--faint); }
+  .tile .footer a { color: var(--signal-text); text-decoration: none; font-family: var(--font-mono); }
+  .tile .footer a:hover { text-decoration: underline; }
+  .tile .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; background: color-mix(in srgb, var(--stage-approved) 12%, var(--card)); color: var(--stage-approved); border: 1px solid color-mix(in srgb, var(--stage-approved) 30%, var(--border)); }
 
-  /* Detail: issue board */
-  .board { display: grid; grid-template-columns: repeat(6, minmax(200px, 1fr)); gap: 12px; height: calc(100vh - 160px); overflow-x: auto; }
-  .col { background: #111114; border: 1px solid #1c1c1f; border-radius: 8px; display: flex; flex-direction: column; min-height: 0; }
-  .col h2 { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin: 0; padding: 10px 12px; border-bottom: 1px solid #1c1c1f; display: flex; justify-content: space-between; }
-  .col h2 .count { color: #555; }
+  /* Project detail — issue board */
+  .col-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; }
+  .col-header h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.015em; }
+  .col-header .sub { color: var(--muted); font-size: 13px; margin-top: 4px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-family: var(--font-mono); }
+  .col-header .sub a { color: var(--signal-text); text-decoration: none; }
+  .col-header .sub a:hover { text-decoration: underline; }
+  .board { display: grid; grid-template-columns: repeat(6, minmax(220px, 1fr)); gap: 12px; height: calc(100vh - 190px); overflow-x: auto; }
+  .col { background: var(--card); border: 1px solid var(--border); border-radius: 12px; display: flex; flex-direction: column; min-height: 0; }
+  .col h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+  .col h2 .count { color: var(--faint); font-family: var(--font-mono); }
   .col .cards { padding: 8px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; }
-  .card { background: #1a1a1e; border: 1px solid #2a2a2e; border-radius: 6px; padding: 10px 12px; cursor: pointer; transition: background 0.1s; }
-  .card:hover { background: #22222a; border-color: #3a3a40; }
-  .card .title { font-weight: 500; font-size: 13px; line-height: 1.35; margin-bottom: 2px; word-break: break-word; }
-  .card .title-vi { font-size: 11px; color: #888; line-height: 1.3; margin-bottom: 4px; font-style: italic; word-break: break-word; }
-  .card .meta { font-size: 11px; color: #777; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-  .card .type { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 500; }
-  .card .type.feature { background: #1f3d4d; color: #7bd0e0; }
-  .card .type.bug { background: #4d1f1f; color: #e07b7b; }
-  .card .type.chore { background: #3d3d1f; color: #d0d07b; }
-  .card .type.spike { background: #3d1f4d; color: #d07be0; }
-  .card .type.adr { background: #4d3d1f; color: #e0b87b; }
-  .card .prio { font-size: 10px; color: #666; }
-  .card .prio.p0 { color: #e07b7b; font-weight: 500; }
-  .card .prio.p1 { color: #e0d47b; }
-  .card .desc { color: #888; font-size: 11px; margin-top: 4px; line-height: 1.4; max-height: 3.5em; overflow: hidden; }
-  .empty { color: #444; font-size: 11px; padding: 12px; text-align: center; }
-
-  .col-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-  .col-header .info { }
-  .col-header .info h2 { margin: 0; font-size: 20px; font-weight: 500; }
-  .col-header .info .sub { color: #888; font-size: 12px; margin-top: 2px; }
-  .col-header .info .sub a { color: #7ba8e0; text-decoration: none; }
+  .icard { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+  .icard:hover { background: var(--bar-track); border-color: color-mix(in srgb, var(--tab-active-text) 25%, var(--border)); }
+  .icard .title { font-weight: 600; font-size: 13px; line-height: 1.35; margin-bottom: 2px; word-break: break-word; color: var(--text-strong); }
+  .icard .title-vi { font-size: 11px; color: var(--muted); line-height: 1.3; margin-bottom: 4px; font-style: italic; word-break: break-word; }
+  .icard .meta { font-size: 11px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+  .icard .type { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .icard .type.feature { background: color-mix(in srgb, var(--signal-text) 12%, var(--card)); color: var(--signal-text); }
+  .icard .type.bug { background: color-mix(in srgb, var(--stage-failed) 12%, var(--card)); color: var(--stage-failed); }
+  .icard .type.chore { background: color-mix(in srgb, var(--star) 12%, var(--card)); color: var(--cost-text); }
+  .icard .type.spike { background: color-mix(in srgb, var(--stack-ext) 12%, var(--card)); color: var(--stack-ext); }
+  .icard .type.adr { background: color-mix(in srgb, var(--stack-mobile) 12%, var(--card)); color: var(--stack-mobile); }
+  .icard .prio { font-size: 10px; color: var(--faint); font-family: var(--font-mono); font-weight: 600; text-transform: uppercase; }
+  .icard .prio.p0 { color: var(--stage-failed); }
+  .icard .prio.p1 { color: var(--star); }
+  .icard .desc { color: var(--muted); font-size: 11.5px; margin-top: 6px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .empty-col { color: var(--faint); font-size: 11px; padding: 12px; text-align: center; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>Mirotic</h1>
-  <a href="/ideas" class="nav">Ideas</a>
-  <a href="/projects" class="nav active">Projects</a>
+  <a href="/ideas" class="nav" data-i18n="nav.ideas">Ideas</a>
+  <a href="/projects" class="nav active" data-i18n="nav.projects">Projects</a>
   <span style="flex:1"></span>
   <span class="meta" id="meta" title="loading…">—</span>
+  <div class="segmented" id="lang-toggle">
+    <button data-lang="vi">VI</button>
+    <button data-lang="en">EN</button>
+  </div>
+  <div class="segmented" id="theme-toggle">
+    <button data-theme="light" title="Light">☀</button>
+    <button data-theme="dark" title="Dark">☾</button>
+  </div>
 </header>
 
 <main id="main"></main>
 
 <script>
+const I18N = {
+  vi: {
+    "nav.ideas": "Ideas", "nav.projects": "Projects",
+    "projects.empty.title": "Chưa có project nào",
+    "projects.empty.hint": "Vào Ideas → chọn card <b>deployed</b> → click <b>Ship to Project</b>",
+    "projects.count": "projects", "issues.count": "issues",
+    "col.backlog": "Backlog", "col.ready": "Ready", "col.in_progress": "Đang làm",
+    "col.review": "Review", "col.shipped": "Đã ship", "col.dropped": "Bỏ",
+  },
+  en: {
+    "nav.ideas": "Ideas", "nav.projects": "Projects",
+    "projects.empty.title": "No projects yet",
+    "projects.empty.hint": "Go to Ideas → pick a <b>deployed</b> card → click <b>Ship to Project</b>",
+    "projects.count": "projects", "issues.count": "issues",
+    "col.backlog": "Backlog", "col.ready": "Ready", "col.in_progress": "In progress",
+    "col.review": "Review", "col.shipped": "Shipped", "col.dropped": "Dropped",
+  },
+};
+let LANG = localStorage.getItem("mirotic.lang") || "vi";
+let THEME = localStorage.getItem("mirotic.theme") || "light";
+const t = (key) => I18N[LANG]?.[key] ?? key;
+function applyTheme(theme) {
+  THEME = theme; localStorage.setItem("mirotic.theme", theme);
+  document.documentElement.setAttribute("data-theme", theme);
+  document.querySelectorAll("#theme-toggle button").forEach(b => b.classList.toggle("active", b.dataset.theme === theme));
+}
+function applyLang(lang) {
+  LANG = lang; localStorage.setItem("mirotic.lang", lang);
+  document.documentElement.setAttribute("lang", lang);
+  document.querySelectorAll("#lang-toggle button").forEach(b => b.classList.toggle("active", b.dataset.lang === lang));
+  document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.getAttribute("data-i18n")); });
+  const m = location.pathname.match(/^\/projects\/(.+)$/);
+  if (m) renderDetail(decodeURIComponent(m[1])); else renderList();
+}
+document.addEventListener("DOMContentLoaded", () => {
+  applyTheme(THEME); applyLang(LANG);
+  document.querySelectorAll("#theme-toggle button").forEach(b => b.addEventListener("click", () => applyTheme(b.dataset.theme)));
+  document.querySelectorAll("#lang-toggle button").forEach(b => b.addEventListener("click", () => applyLang(b.dataset.lang)));
+});
+
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
 async function renderList() {
   const projects = await fetch("/api/projects").then(r => r.json());
-  document.getElementById("meta").textContent = `${projects.length} projects`;
+  document.getElementById("meta").textContent = `${projects.length} · ${t("projects.count")}`;
   const main = document.getElementById("main");
   if (projects.length === 0) {
-    main.innerHTML = `<div style="color:#666;text-align:center;padding:60px">
-      <div style="font-size:16px;margin-bottom:8px">Chưa có project nào</div>
-      <div style="font-size:12px">Vào <a href="/ideas" style="color:#7ba8e0">Ideas</a> → chọn card <b>deployed</b> → click <b>Ship to Project</b></div>
+    main.innerHTML = `<div class="empty-state">
+      <div class="big">${escapeHtml(t("projects.empty.title"))}</div>
+      <div>${t("projects.empty.hint")}</div>
     </div>`;
     return;
   }
@@ -93,53 +200,53 @@ async function renderList() {
     ${p.title_vi && p.title_vi !== p.title ? `<div class="sub">${escapeHtml(p.title_vi)}</div>` : ""}
     <div class="desc">${escapeHtml(p.description || "—")}</div>
     <div class="footer">
+      <span class="status-pill">${escapeHtml(p.status)}</span>
       ${p.repo_url ? `<a href="${escapeHtml(p.repo_url)}" target="_blank" onclick="event.stopPropagation()">repo↗</a>` : ""}
       ${p.prod_domain ? `<a href="https://${escapeHtml(p.prod_domain)}" target="_blank" onclick="event.stopPropagation()">${escapeHtml(p.prod_domain)}↗</a>` : ""}
-      <span>${escapeHtml(p.status)}</span>
     </div>
   </div>`).join("")}</div>`;
 }
 
 const ISSUE_COLS = [
-  ["backlog", "Backlog"],
-  ["ready", "Ready"],
-  ["in_progress", "In progress"],
-  ["review", "Review"],
-  ["shipped", "Shipped"],
-  ["dropped", "Dropped"],
+  ["backlog", "col.backlog"],
+  ["ready", "col.ready"],
+  ["in_progress", "col.in_progress"],
+  ["review", "col.review"],
+  ["shipped", "col.shipped"],
+  ["dropped", "col.dropped"],
 ];
 
 async function renderDetail(id) {
   const p = await fetch(`/api/projects/${encodeURIComponent(id)}`).then(r => r.json());
-  document.getElementById("meta").textContent = `${p.issues?.length ?? 0} issues`;
-  const main = document.getElementById("main");
   const issues = p.issues || [];
+  document.getElementById("meta").textContent = `${issues.length} · ${t("issues.count")}`;
+  const main = document.getElementById("main");
   main.innerHTML = `
     <div class="col-header">
-      <div class="info">
+      <div>
         <h2>${escapeHtml(p.title)}</h2>
         <div class="sub">
-          ${p.title_vi && p.title_vi !== p.title ? `<span style="font-style:italic">${escapeHtml(p.title_vi)}</span> · ` : ""}
-          ${p.repo_url ? `<a href="${escapeHtml(p.repo_url)}" target="_blank">repo↗</a> · ` : ""}
-          ${p.prod_domain ? `<a href="https://${escapeHtml(p.prod_domain)}" target="_blank">prod↗</a> · ` : ""}
-          ${p.staging_domain ? `<a href="https://${escapeHtml(p.staging_domain)}" target="_blank">staging↗</a> · ` : ""}
-          status ${escapeHtml(p.status)}
+          ${p.title_vi && p.title_vi !== p.title ? `<span style="font-style:italic">${escapeHtml(p.title_vi)}</span>` : ""}
+          ${p.repo_url ? `<a href="${escapeHtml(p.repo_url)}" target="_blank">repo↗</a>` : ""}
+          ${p.prod_domain ? `<a href="https://${escapeHtml(p.prod_domain)}" target="_blank">prod↗</a>` : ""}
+          ${p.staging_domain ? `<a href="https://${escapeHtml(p.staging_domain)}" target="_blank">staging↗</a>` : ""}
+          <span class="status-pill">${escapeHtml(p.status)}</span>
         </div>
       </div>
     </div>
     <div class="board">
-      ${ISSUE_COLS.map(([key, label]) => {
+      ${ISSUE_COLS.map(([key, i18nKey]) => {
         const items = issues.filter(i => i.status === key);
         return `<div class="col">
-          <h2>${label}<span class="count">${items.length}</span></h2>
-          <div class="cards">${items.length === 0 ? `<div class="empty">—</div>` :
-            items.map(i => `<div class="card">
+          <h2>${escapeHtml(t(i18nKey))}<span class="count">${items.length}</span></h2>
+          <div class="cards">${items.length === 0 ? `<div class="empty-col">—</div>` :
+            items.map(i => `<div class="icard">
               <div class="title">${escapeHtml(i.title)}</div>
               ${i.title_vi && i.title_vi !== i.title ? `<div class="title-vi">${escapeHtml(i.title_vi)}</div>` : ""}
               <div class="meta">
                 <span class="type ${escapeHtml(i.type)}">${escapeHtml(i.type)}</span>
                 <span class="prio ${escapeHtml(i.priority)}">${escapeHtml(i.priority)}</span>
-                ${i.ceo_rating ? `<span style="color:#e0d47b">${"★".repeat(i.ceo_rating)}</span>` : ""}
+                ${i.ceo_rating ? `<span style="color:var(--star)">${"★".repeat(i.ceo_rating)}</span>` : ""}
               </div>
               ${i.description ? `<div class="desc">${escapeHtml(i.description.slice(0, 200))}</div>` : ""}
             </div>`).join("")}
@@ -148,10 +255,6 @@ async function renderDetail(id) {
       }).join("")}
     </div>`;
 }
-
-const m = location.pathname.match(/^\/projects\/(.+)$/);
-if (m) renderDetail(decodeURIComponent(m[1]));
-else renderList();
 </script>
 </body>
 </html>
