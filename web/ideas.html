@@ -96,7 +96,7 @@
   header .icon-btn.toggle-btn { font-family: var(--font-mono); font-weight: 600; font-size: 12px; letter-spacing: 0.02em; }
 
   /* ────────── Dashboard layout ────────── */
-  .dashboard { display: grid; grid-template-columns: 308px 1fr; gap: 22px; padding: 22px; height: calc(100vh - 56px); overflow: hidden; }
+  .dashboard { display: grid; grid-template-columns: 308px 1fr; gap: 22px; padding: 22px; align-items: start; }
   /* Responsive: stacked layout khi màn hình hẹp */
   @media (max-width: 960px) {
     .dashboard { grid-template-columns: 1fr; height: auto; overflow: visible; padding: 14px; gap: 14px; }
@@ -122,8 +122,8 @@
     .segmented button { padding: 3px 8px; font-size: 11px; min-width: 24px; }
     header .icon-btn { width: 30px; height: 30px; font-size: 14px; }
   }
-  .sidebar, .main-col { overflow-y: auto; min-width: 0; }
-  .main-col { display: flex; flex-direction: column; gap: 18px; padding-right: 4px; }
+  .sidebar, .main-col { min-width: 0; }
+  .main-col { display: flex; flex-direction: column; gap: 18px; }
   .d-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; }
   .section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); padding: 16px 18px 8px; }
 
