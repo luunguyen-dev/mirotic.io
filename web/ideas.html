@@ -641,7 +641,8 @@ async function openDrawer(id) {
     <div class="checklist">${j.plan.steps.map(s => `<div class="step ${s.status}">
       <span class="icon">${stepIcon[s.status] || "○"}</span>
       <div style="flex:1"><span>${escapeHtml(s.label_en)}</span><span class="lbl-vi">${escapeHtml(s.label_vi)}</span>${s.note ? `<span class="note">${escapeHtml(s.note)}</span>` : ""}</div>
-    </div>`).join("")}</div></div>` : "";
+    </div>`).join("")}</div></div>`
+    : `<div class="field"><label>Progress trace</label><div id="progress-fallback" style="font-family:'SF Mono',Menlo,monospace;font-size:11px;color:#666">loading trace…</div></div>`;
 
   const failedCount = (j.plan?.steps ?? []).filter(s => s.status === "failed").length;
   const hasError = !!j.error_detail;
@@ -708,6 +709,22 @@ async function openDrawer(id) {
   clearInterval(logPollTimer);
   pollLogs();
   logPollTimer = setInterval(pollLogs, 2000);
+  // Nếu plan.steps trống (job cũ trước khi có detailed plan): fetch summary logs render fallback trace.
+  if (!j.plan?.steps?.length) loadProgressFallback(id).catch(() => {});
+}
+
+async function loadProgressFallback(jobId) {
+  const el = document.getElementById("progress-fallback");
+  if (!el || currentDrawerJob !== jobId) return;
+  const logs = await fetch(`/api/jobs/${jobId}/logs?since=0`).then(r => r.json()).catch(() => []);
+  if (currentDrawerJob !== jobId || !el) return;
+  const summary = logs.filter(l => l.level === "summary" || l.level === "error");
+  if (!summary.length) { el.textContent = "chưa có trace"; return; }
+  el.innerHTML = summary.map(l => {
+    const t = new Date(l.ts).toLocaleTimeString("en-GB", { hour12: false });
+    const cls = l.level === "error" ? "color:#e0a0a0" : "color:#a3d9a5";
+    return `<div style="padding:3px 0;${cls}"><span style="color:#555;margin-right:8px">${t}</span>${escapeHtml(l.line || "")}</div>`;
+  }).join("");
 }
 
 async function pollLogs() {
