@@ -8,11 +8,20 @@
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
   body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "SF Pro", sans-serif; background: #0b0b0c; color: #e8e8e8; }
-  header { padding: 14px 20px; border-bottom: 1px solid #1c1c1f; display: flex; align-items: center; gap: 16px; }
+  header { padding: 12px 20px; border-bottom: 1px solid #1c1c1f; display: flex; align-items: center; gap: 10px; }
   header h1 { font-size: 16px; margin: 0; font-weight: 500; letter-spacing: 0.02em; }
-  header .meta { color: #666; font-size: 12px; }
-  header button { background: #1c1c1f; color: #ddd; border: 1px solid #2a2a2e; padding: 4px 10px; border-radius: 5px; cursor: pointer; font: inherit; }
-  header button:hover { background: #25252a; }
+  header .nav { color: #7ba8e0; font-size: 13px; text-decoration: none; padding: 5px 12px; border-radius: 5px; background: #1c1c1f; border: 1px solid #2a2a2e; display: inline-flex; align-items: center; gap: 4px; }
+  header .nav.active { background: #1f4d39; border-color: #2d6e54; color: #a3d9a5; }
+  header .nav:hover { background: #22222a; }
+  header .nav.active:hover { background: #2a6347; }
+  /* Meta = dot + count + time — subtle, monospace numbers. */
+  header .meta { color: #555; font-size: 11px; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 6px; }
+  header .meta::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #2d6e54; box-shadow: 0 0 6px rgba(45,110,84,0.5); animation: pulse 2s infinite; }
+  /* Icon buttons — square, no text. */
+  header .icon-btn { background: #1c1c1f; color: #aaa; border: 1px solid #2a2a2e; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; font: inherit; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; padding: 0; transition: background 0.1s, color 0.1s; }
+  header .icon-btn:hover { background: #25252a; color: #e8e8e8; }
+  header .icon-btn.primary { background: #1f4d39; border-color: #2d6e54; color: #a3d9a5; font-size: 18px; }
+  header .icon-btn.primary:hover { background: #2a6347; }
   .board { display: grid; grid-template-columns: repeat(7, minmax(200px, 1fr)); gap: 12px; padding: 16px; height: calc(100vh - 113px); overflow-x: auto; }
   .col { background: #111114; border: 1px solid #1c1c1f; border-radius: 8px; display: flex; flex-direction: column; min-height: 0; }
   .col h2 { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin: 0; padding: 10px 12px; border-bottom: 1px solid #1c1c1f; display: flex; justify-content: space-between; }
@@ -219,13 +228,13 @@
 
 <header>
   <h1>Mirotic</h1>
-  <a href="/ideas" style="color:#7ba8e0;font-size:13px;text-decoration:none;padding:4px 10px;border-radius:5px;background:#1f4d39;border:1px solid #2d6e54;color:#a3d9a5">💡 Ideas</a>
-  <a href="/projects" style="color:#7ba8e0;font-size:13px;text-decoration:none;padding:4px 10px;border-radius:5px;background:#1c1c1f;border:1px solid #2a2a2e">📂 Projects</a>
-  <span class="meta" id="meta">loading…</span>
+  <a href="/ideas" class="nav active">Ideas</a>
+  <a href="/projects" class="nav">Projects</a>
   <span style="flex:1"></span>
-  <button onclick="openEventsDrawer()" title="System event stream">📋 events</button>
-  <button onclick="openManualModal()" style="background:#1f4d39;border:1px solid #2d6e54;color:#a3d9a5">+ new idea</button>
-  <button onclick="load()">↻ refresh</button>
+  <span class="meta" id="meta" title="loading…">—</span>
+  <button class="icon-btn" onclick="openEventsDrawer()" title="Events">📋</button>
+  <button class="icon-btn" onclick="openManualModal()" title="New idea">＋</button>
+  <button class="icon-btn" onclick="load()" title="Refresh">↻</button>
 </header>
 
 <div class="modal-backdrop" id="manual-backdrop" onclick="if(event.target===this)closeManualModal()">
@@ -443,7 +452,10 @@ function toggleFilter(status) {
 
 async function load() {
   const jobs = await fetch("/api/jobs").then(r => r.json());
-  document.getElementById("meta").textContent = `${jobs.length} jobs · refreshed ${new Date().toLocaleTimeString("en-GB", { hour12: false })}`;
+  const refreshedAt = new Date().toLocaleTimeString("en-GB", { hour12: false });
+  const metaEl = document.getElementById("meta");
+  metaEl.textContent = `${jobs.length} · ${refreshedAt}`;
+  metaEl.title = `${jobs.length} jobs · refreshed ${refreshedAt}`;
   renderStatusBar();
   // Nếu events drawer đang mở, refresh nội dung.
   if (eventsDrawerOpen) fetchEvents().then(renderEventsDrawer);

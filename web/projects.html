@@ -8,13 +8,15 @@
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
   body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "SF Pro", sans-serif; background: #0b0b0c; color: #e8e8e8; }
-  header { padding: 14px 20px; border-bottom: 1px solid #1c1c1f; display: flex; align-items: center; gap: 16px; }
+  header { padding: 12px 20px; border-bottom: 1px solid #1c1c1f; display: flex; align-items: center; gap: 10px; }
   header h1 { font-size: 16px; margin: 0; font-weight: 500; letter-spacing: 0.02em; }
-  header .meta { color: #666; font-size: 12px; }
-  header a { color: #7ba8e0; font-size: 13px; text-decoration: none; padding: 4px 10px; border-radius: 5px; background: #1c1c1f; border: 1px solid #2a2a2e; }
-  header a:hover { background: #22222a; }
-  header a.active { background: #1f4d39; border-color: #2d6e54; color: #a3d9a5; }
-  header button { background: #1c1c1f; color: #ddd; border: 1px solid #2a2a2e; padding: 4px 10px; border-radius: 5px; cursor: pointer; font: inherit; }
+  header .nav { color: #7ba8e0; font-size: 13px; text-decoration: none; padding: 5px 12px; border-radius: 5px; background: #1c1c1f; border: 1px solid #2a2a2e; }
+  header .nav.active { background: #1f4d39; border-color: #2d6e54; color: #a3d9a5; }
+  header .nav:hover { background: #22222a; }
+  header .nav.active:hover { background: #2a6347; }
+  header .meta { color: #555; font-size: 11px; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 6px; }
+  header .meta::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #2d6e54; box-shadow: 0 0 6px rgba(45,110,84,0.5); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
   main { padding: 20px; }
 
@@ -62,9 +64,10 @@
 
 <header>
   <h1>Mirotic</h1>
-  <a href="/ideas">💡 Ideas</a>
-  <a href="/projects" class="active">📂 Projects</a>
-  <span class="meta" id="meta">loading…</span>
+  <a href="/ideas" class="nav">Ideas</a>
+  <a href="/projects" class="nav active">Projects</a>
+  <span style="flex:1"></span>
+  <span class="meta" id="meta" title="loading…">—</span>
 </header>
 
 <main id="main"></main>
