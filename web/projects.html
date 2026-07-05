@@ -64,10 +64,9 @@
   header .meta { color: var(--muted); font-size: 12px; font-family: var(--font-mono); display: inline-flex; align-items: center; gap: 6px; }
   header .meta::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--stage-deployed); box-shadow: 0 0 6px rgba(46,160,67,0.5); animation: pulse 2s infinite; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-  .segmented { display: inline-flex; background: var(--control-bg); border: 1px solid var(--control-border); border-radius: 9px; padding: 2px; }
-  .segmented button { background: transparent; border: 0; color: var(--muted); font: 500 12px var(--font-ui); padding: 4px 10px; border-radius: 7px; cursor: pointer; min-width: 28px; }
-  .segmented button.active { background: var(--control-active); color: var(--text-strong); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-  .segmented button:hover:not(.active) { color: var(--text); }
+  header .icon-btn { background: var(--card); color: var(--muted); border: 1px solid var(--border); width: 32px; height: 32px; border-radius: 8px; cursor: pointer; font: inherit; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+  header .icon-btn:hover { background: var(--bar-track); color: var(--text-strong); }
+  header .icon-btn.toggle-btn { font-family: var(--font-mono); font-weight: 600; font-size: 12px; letter-spacing: 0.02em; }
 
   main { padding: 22px; }
   h2, h3 { color: var(--text-strong); }
@@ -127,14 +126,8 @@
   <a href="/projects" class="nav active" data-i18n="nav.projects">Projects</a>
   <span style="flex:1"></span>
   <span class="meta" id="meta" title="loading…">—</span>
-  <div class="segmented" id="lang-toggle">
-    <button data-lang="vi">VI</button>
-    <button data-lang="en">EN</button>
-  </div>
-  <div class="segmented" id="theme-toggle">
-    <button data-theme="light" title="Light">☀</button>
-    <button data-theme="dark" title="Dark">☾</button>
-  </div>
+  <button class="icon-btn toggle-btn" id="lang-btn" onclick="toggleLang()" title="Language">VI</button>
+  <button class="icon-btn toggle-btn" id="theme-btn" onclick="toggleTheme()" title="Theme">☀</button>
 </header>
 
 <main id="main"></main>
@@ -164,21 +157,21 @@ const t = (key) => I18N[LANG]?.[key] ?? key;
 function applyTheme(theme) {
   THEME = theme; localStorage.setItem("mirotic.theme", theme);
   document.documentElement.setAttribute("data-theme", theme);
-  document.querySelectorAll("#theme-toggle button").forEach(b => b.classList.toggle("active", b.dataset.theme === theme));
+  const btn = document.getElementById("theme-btn");
+  if (btn) btn.textContent = theme === "dark" ? "☾" : "☀";
 }
 function applyLang(lang) {
   LANG = lang; localStorage.setItem("mirotic.lang", lang);
   document.documentElement.setAttribute("lang", lang);
-  document.querySelectorAll("#lang-toggle button").forEach(b => b.classList.toggle("active", b.dataset.lang === lang));
+  const btn = document.getElementById("lang-btn");
+  if (btn) btn.textContent = lang.toUpperCase();
   document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.getAttribute("data-i18n")); });
   const m = location.pathname.match(/^\/projects\/(.+)$/);
   if (m) renderDetail(decodeURIComponent(m[1])); else renderList();
 }
-document.addEventListener("DOMContentLoaded", () => {
-  applyTheme(THEME); applyLang(LANG);
-  document.querySelectorAll("#theme-toggle button").forEach(b => b.addEventListener("click", () => applyTheme(b.dataset.theme)));
-  document.querySelectorAll("#lang-toggle button").forEach(b => b.addEventListener("click", () => applyLang(b.dataset.lang)));
-});
+function toggleTheme() { applyTheme(THEME === "dark" ? "light" : "dark"); }
+function toggleLang() { applyLang(LANG === "vi" ? "en" : "vi"); }
+document.addEventListener("DOMContentLoaded", () => { applyTheme(THEME); applyLang(LANG); });
 
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
