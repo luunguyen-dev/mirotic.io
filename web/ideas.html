@@ -96,6 +96,31 @@
 
   /* ────────── Dashboard layout ────────── */
   .dashboard { display: grid; grid-template-columns: 308px 1fr; gap: 22px; padding: 22px; height: calc(100vh - 56px); overflow: hidden; }
+  /* Responsive: stacked layout khi màn hình hẹp */
+  @media (max-width: 960px) {
+    .dashboard { grid-template-columns: 1fr; height: auto; overflow: visible; padding: 14px; gap: 14px; }
+    .sidebar, .main-col { overflow-y: visible; }
+    .kpi-row { grid-template-columns: repeat(2, 1fr) !important; }
+    .spotlight { grid-template-columns: 1fr !important; }
+    .grid { grid-template-columns: repeat(2, 1fr) !important; }
+    header { padding: 0 14px; flex-wrap: wrap; height: auto; min-height: 56px; gap: 8px; }
+    header h1 { font-size: 16px; }
+    header .nav { padding: 5px 10px; font-size: 12px; }
+    header .meta { font-size: 11px; }
+    body { overflow-x: hidden; }
+  }
+  @media (max-width: 560px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr) !important; gap: 8px; }
+    .kpi { padding: 12px 14px; }
+    .kpi-value { font-size: 22px; }
+    .grid { grid-template-columns: 1fr !important; }
+    .spotlight { padding: 16px 18px; gap: 14px; }
+    .spot-title { font-size: 22px !important; }
+    .heatmap-grid { grid-template-columns: repeat(8, 1fr) !important; grid-template-rows: repeat(3, 1fr) !important; }
+    header .meta { display: none; }
+    .segmented button { padding: 3px 8px; font-size: 11px; min-width: 24px; }
+    header .icon-btn { width: 30px; height: 30px; font-size: 14px; }
+  }
   .sidebar, .main-col { overflow-y: auto; min-width: 0; }
   .main-col { display: flex; flex-direction: column; gap: 18px; padding-right: 4px; }
   .d-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; }
