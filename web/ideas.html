@@ -241,6 +241,10 @@
   #events-table tr:hover td { background: #12121a; }
   #events-table td.ts { color: #666; white-space: nowrap; }
   #events-table td.exec { color: #7ba8e0; white-space: nowrap; }
+  #events-table td.exec.system { color: #e0d47b; }
+  #events-drawer .filter-chip.system { background: #1f1b0a; border-color: #3a3220; color: #e0d47b; }
+  #events-drawer .filter-chip.system.active { background: #2a2410; border-color: #e0d47b; color: #e0d47b; }
+  #events-drawer .filter-chip.system .count { color: #a89e6b; }
   #events-table td.msg { color: #ccc; word-break: break-word; }
   #events-table tr.error td.exec { color: #e07b7b; }
   #events-table tr.summary td.msg { color: #a3d9a5; }
@@ -432,6 +436,13 @@ function slugOf(jobId) {
   return (jobId || "").replace(/^\d{4}-\d{2}-\d{2}-/, "");
 }
 
+// Executor key = job slug (nếu có job_id) hoặc actor (system events).
+function executorOf(e) {
+  return e.job_id ? slugOf(e.job_id) : (e.actor || "system");
+}
+
+const SYSTEM_ACTORS = new Set(["prototyper", "ceo", "planner", "poller", "auto-approve", "deployer"]);
+
 function renderEventsDrawer() {
   if (!eventsDrawerOpen) return;
   const filterEl = document.getElementById("events-filter");
@@ -442,7 +453,7 @@ function renderEventsDrawer() {
   const counts = {};
   const firstSeen = {};
   eventsAll.forEach((e, i) => {
-    const s = slugOf(e.job_id);
+    const s = executorOf(e);
     counts[s] = (counts[s] || 0) + 1;
     if (!(s in firstSeen)) firstSeen[s] = i;
   });
@@ -455,18 +466,25 @@ function renderEventsDrawer() {
 
   filterEl.innerHTML = `
     <span class="filter-chip ${eventsFilterExecutor === null ? "active" : ""}" onclick="event.stopPropagation(); pickEventsFilter(null)">all<span class="count">${eventsAll.length}</span></span>
-    ${executors.map(([slug, n]) => `<span class="filter-chip ${eventsFilterExecutor === slug ? "active" : ""}" onclick="event.stopPropagation(); pickEventsFilter('${escapeHtml(slug)}')">${escapeHtml(slug)}<span class="count">${n}</span></span>`).join("")}
+    ${executors.map(([key, n]) => {
+      const systemCls = SYSTEM_ACTORS.has(key) ? " system" : "";
+      const activeCls = eventsFilterExecutor === key ? " active" : "";
+      return `<span class="filter-chip${systemCls}${activeCls}" onclick="event.stopPropagation(); pickEventsFilter('${escapeHtml(key)}')">${escapeHtml(key)}<span class="count">${n}</span></span>`;
+    }).join("")}
   `;
 
-  const filtered = eventsFilterExecutor ? eventsAll.filter(e => slugOf(e.job_id) === eventsFilterExecutor) : eventsAll;
+  const filtered = eventsFilterExecutor ? eventsAll.filter(e => executorOf(e) === eventsFilterExecutor) : eventsAll;
   tableEl.innerHTML = `
     <tbody>${filtered.map(e => {
       const d = new Date(e.ts);
       const ts = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")} ${d.toLocaleTimeString("en-GB", { hour12: false })}`;
-      const slug = slugOf(e.job_id);
+      const exec = executorOf(e);
+      const isSystem = !e.job_id;
       const cls = e.level === "error" ? "error" : "summary";
-      return `<tr class="${cls}" onclick="closeEventsDrawer(); openDrawer('${escapeHtml(e.job_id)}')">
-        <td class="ts">${ts}</td><td class="exec">${escapeHtml(slug)}</td><td class="msg">${escapeHtml(e.line || "")}</td>
+      const onclick = e.job_id ? `onclick="closeEventsDrawer(); openDrawer('${escapeHtml(e.job_id)}')"` : "";
+      const execClass = isSystem ? "exec system" : "exec";
+      return `<tr class="${cls}" ${onclick}>
+        <td class="ts">${ts}</td><td class="${execClass}">${escapeHtml(exec)}</td><td class="msg">${escapeHtml(e.line || "")}</td>
       </tr>`;
     }).join("")}</tbody>`;
 }

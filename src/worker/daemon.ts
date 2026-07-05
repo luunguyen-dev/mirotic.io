@@ -39,11 +39,14 @@ type Reviewed = ScoredIdea & { ceo_rating?: number; ceo_critique?: string };
 
 export async function generateIdeaBatch(n = 10, topK = 3): Promise<{ jobIds: string[]; pooled: number }> {
   log(`☀️  Prototyper batch — gom ${n} candidates…`);
+  db.appendSystemLog("prototyper", `Batch start — gom ${n} candidates`, "summary").catch(() => {});
   const candidates: ScoredIdea[] = await batchCollect(n);
   log(`   gom được ${candidates.length} candidates (score ${candidates[0]?.score.toFixed(2) ?? "—"} → ${candidates.at(-1)?.score.toFixed(2) ?? "—"})`);
+  db.appendSystemLog("prototyper", `Batch gom ${candidates.length} candidates (score ${candidates[0]?.score.toFixed(2) ?? "—"} → ${candidates.at(-1)?.score.toFixed(2) ?? "—"})`, "summary").catch(() => {});
 
   // CEO review song song (10 items × ~3-8s Claude) — timeout mỗi call 60s.
   log(`🏛  CEO review ${candidates.length} candidates (Claude, parallel)…`);
+  db.appendSystemLog("ceo", `Review ${candidates.length} candidates parallel`, "summary").catch(() => {});
   const reviews = await Promise.all(candidates.map((c) => ceoReview(c)));
   const reviewed: Reviewed[] = candidates.map((c, i) => ({
     ...c,
@@ -55,19 +58,23 @@ export async function generateIdeaBatch(n = 10, topK = 3): Promise<{ jobIds: str
   reviewed.sort((a, b) => (b.ceo_rating ?? 0) - (a.ceo_rating ?? 0) || b.score - a.score);
   const withRating = reviewed.filter((r) => r.ceo_rating).length;
   log(`   CEO OK: ${withRating}/${reviewed.length}. Top-3 rating: ${reviewed.slice(0, 3).map((r) => r.ceo_rating ?? "?").join(", ")}`);
+  db.appendSystemLog("ceo", `Done: ${withRating}/${reviewed.length} rated. Top-3: ${reviewed.slice(0, 3).map((r) => r.ceo_rating ?? "?").join(", ")}⭐`, "summary").catch(() => {});
 
   const jobIds: string[] = [];
   for (const c of reviewed.slice(0, topK)) {
     const plan = await makePlan(c);
     const id = await db.insertJob(c, plan);
+    db.appendSystemLog("planner", `Plan sinh cho ${id} (${c.title})`, "summary").catch(() => {});
     if (c.ceo_rating) await db.setCeoReview(id, c.ceo_rating, c.ceo_critique ?? "");
     // Auto-approve nếu CEO rating >= threshold (config).
     if (CONFIG.autoApproveMinRating > 0 && c.ceo_rating && c.ceo_rating >= CONFIG.autoApproveMinRating) {
       await db.setStatus(id, "approved");
       log(`   ✓ auto-approved (rating ${c.ceo_rating} >= ${CONFIG.autoApproveMinRating})`);
+      db.appendSystemLog("auto-approve", `${id} → approved (${c.ceo_rating}⭐ ≥ ${CONFIG.autoApproveMinRating})`, "summary").catch(() => {});
     }
     jobIds.push(id);
     log(`   → job ${id} "${c.title}" (${c.ceo_rating ?? "?"}⭐ · score ${c.score.toFixed(2)})`);
+    db.appendSystemLog("prototyper", `Job promoted: ${id} "${c.title}" (${c.ceo_rating ?? "?"}⭐)`, "summary").catch(() => {});
   }
   let pooled = 0;
   for (const c of reviewed.slice(topK)) {
@@ -82,6 +89,7 @@ export async function generateIdeaBatch(n = 10, topK = 3): Promise<{ jobIds: str
     pooled++;
   }
   log(`   → pool: ${pooled} candidates`);
+  db.appendSystemLog("prototyper", `Batch done: ${topK} jobs + ${pooled} pool`, "summary").catch(() => {});
   return { jobIds, pooled };
 }
 

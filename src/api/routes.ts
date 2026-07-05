@@ -100,17 +100,21 @@ export async function handleFetch(req: Request): Promise<Response> {
       const plan = await makePlan(idea);
       const id = await db.insertJob(idea, plan);
       // CEO review async — không block response; user sẽ thấy rating xuất hiện sau vài giây.
+      db.appendSystemLog("prototyper", `Manual submit → ${id} "${idea.title}"`, "summary").catch(() => {});
       ceoReview(idea).then(async (r) => {
         if (r) {
           await db.setCeoReview(id, r.rating, JSON.stringify(r.critique));
           console.log(`[CEO] ${id}: ${r.rating}⭐`);
+          await db.appendSystemLog("ceo", `${id}: ${r.rating}⭐`, "summary").catch(() => {});
           // Auto-approve nếu >= threshold.
           if (CONFIG.autoApproveMinRating > 0 && r.rating >= CONFIG.autoApproveMinRating) {
             await db.setStatus(id, "approved");
             console.log(`[auto-approve] ${id} → approved (${r.rating}⭐ >= ${CONFIG.autoApproveMinRating})`);
+            await db.appendSystemLog("auto-approve", `${id} → approved (${r.rating}⭐ ≥ ${CONFIG.autoApproveMinRating})`, "summary").catch(() => {});
           }
         } else {
           console.log(`[CEO] ${id}: null (LLM fail hoặc mock mode)`);
+          await db.appendSystemLog("ceo", `${id}: review failed`, "error").catch(() => {});
         }
       }).catch((e) => console.log(`[CEO] ${id}: ERROR ${e?.message ?? e}`));
       return Response.json({ ok: true, id, title: idea.title, slug: idea.slug });

@@ -124,7 +124,8 @@ interface Backend {
   // job_logs
   appendLog(jobId: string, line: string, level?: string): Promise<void>;
   getLogs(jobId: string, sinceId: number, limit: number): Promise<LogEntry[]>;
-  getEvents(sinceId: number, limit: number): Promise<Array<LogEntry & { title: string | null }>>;
+  getEvents(sinceId: number, limit: number): Promise<Array<LogEntry & { title: string | null; actor: string | null }>>;
+  appendSystemLog(actor: string, line: string, level?: string): Promise<void>;
   // projects + issues (P1)
   createProject(p: Omit<Project, "created_at" | "updated_at">): Promise<void>;
   getProject(id: string): Promise<Project | null>;
@@ -146,10 +147,18 @@ function pgBackend(url: string): Backend {
   return {
     async init() {
       await sql.unsafe(SCHEMA);
-      // Idempotent column migrations (khớp infra/aws/schema.sql).
+      // Idempotent migrations (khớp infra/aws/schema.sql).
       await sql.unsafe(`
         ALTER TABLE jobs ADD COLUMN IF NOT EXISTS total_cost_usd DOUBLE PRECISION;
         ALTER TABLE jobs ADD COLUMN IF NOT EXISTS total_turns INTEGER;
+        CREATE TABLE IF NOT EXISTS system_events (
+          id     BIGSERIAL PRIMARY KEY,
+          ts     TEXT NOT NULL,
+          actor  TEXT NOT NULL,
+          level  TEXT DEFAULT 'info',
+          line   TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS system_events_id_idx ON system_events (id DESC);
       `);
     },
     async insertJob(idea, plan) {
@@ -253,14 +262,26 @@ function pgBackend(url: string): Backend {
       return r as any;
     },
     async getEvents(sinceId, limit) {
-      // Cross-cut events: summary + error lines từ mọi job, join với title từ idea_json.
-      const r = await sql`SELECT l.id, l.job_id, l.ts, l.level, l.line,
-        (jobs.idea_json::json->>'title') AS title
-        FROM job_logs l
-        LEFT JOIN jobs ON jobs.id = l.job_id
-        WHERE l.level IN ('summary', 'error') AND l.id > ${sinceId}
-        ORDER BY l.id DESC LIMIT ${limit}`;
-      return r as any;
+      // Union job_logs (job-scoped) + system_events (batch-level actor logs).
+      // Ordering: ts DESC (id không so được giữa 2 bảng có sequence riêng).
+      const [jobRows, sysRows] = await Promise.all([
+        sql`SELECT l.id, l.job_id, l.ts, l.level, l.line,
+          (jobs.idea_json::json->>'title') AS title, NULL::text AS actor
+          FROM job_logs l LEFT JOIN jobs ON jobs.id = l.job_id
+          WHERE l.level IN ('summary', 'error')
+          ORDER BY l.id DESC LIMIT ${limit}`,
+        sql`SELECT id, NULL::text AS job_id, ts, level, line, NULL::text AS title, actor
+          FROM system_events
+          WHERE level IN ('summary', 'error', 'info')
+          ORDER BY id DESC LIMIT ${limit}`,
+      ]);
+      const merged = [...jobRows, ...sysRows]
+        .sort((a: any, b: any) => (b.ts > a.ts ? 1 : b.ts < a.ts ? -1 : 0))
+        .slice(0, limit);
+      return merged as any;
+    },
+    async appendSystemLog(actor, line, level = "info") {
+      await sql`INSERT INTO system_events (ts, actor, level, line) VALUES (${now()}, ${actor}, ${level}, ${line})`;
     },
     async createProject(p) {
       const row = { ...p, created_at: now(), updated_at: now() };
@@ -416,11 +437,21 @@ function sqliteBackend(): Backend {
         WHERE job_id = ? AND id > ? ORDER BY id ASC LIMIT ?`).all(jobId, sinceId, limit) as any;
     },
     async getEvents(sinceId, limit) {
-      return db.query(`SELECT l.id, l.job_id, l.ts, l.level, l.line,
-        json_extract(jobs.idea_json, '$.title') AS title
+      try { db.run(`CREATE TABLE IF NOT EXISTS system_events (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, actor TEXT, level TEXT, line TEXT)`); } catch {}
+      const jobRows = db.query(`SELECT l.id, l.job_id, l.ts, l.level, l.line,
+        json_extract(jobs.idea_json, '$.title') AS title, NULL AS actor
         FROM job_logs l LEFT JOIN jobs ON jobs.id = l.job_id
-        WHERE l.level IN ('summary','error') AND l.id > ?
-        ORDER BY l.id DESC LIMIT ?`).all(sinceId, limit) as any;
+        WHERE l.level IN ('summary','error')
+        ORDER BY l.id DESC LIMIT ?`).all(limit) as any[];
+      const sysRows = db.query(`SELECT id, NULL AS job_id, ts, level, line, NULL AS title, actor
+        FROM system_events
+        WHERE level IN ('summary','error','info')
+        ORDER BY id DESC LIMIT ?`).all(limit) as any[];
+      return [...jobRows, ...sysRows].sort((a, b) => (b.ts > a.ts ? 1 : b.ts < a.ts ? -1 : 0)).slice(0, limit);
+    },
+    async appendSystemLog(actor, line, level = "info") {
+      try { db.run(`CREATE TABLE IF NOT EXISTS system_events (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, actor TEXT, level TEXT, line TEXT)`); } catch {}
+      db.run(`INSERT INTO system_events (ts, actor, level, line) VALUES (?,?,?,?)`, [now(), actor, level, line]);
     },
     async createProject() { throw new Error("projects not supported in SQLite backend"); },
     async getProject() { return null; },
@@ -471,6 +502,7 @@ export const markPoolPromoted = (id: string) => backend.markPoolPromoted(id);
 export const appendLog = (jobId: string, line: string, level = "info") => backend.appendLog(jobId, line, level);
 export const getLogs = (jobId: string, sinceId = 0, limit = 500) => backend.getLogs(jobId, sinceId, limit);
 export const getEvents = (sinceId = 0, limit = 100) => backend.getEvents(sinceId, limit);
+export const appendSystemLog = (actor: string, line: string, level = "info") => backend.appendSystemLog(actor, line, level);
 // P1 — projects + issues
 export const createProject = (p: Omit<Project, "created_at" | "updated_at">) => backend.createProject(p);
 export const getProject = (id: string) => backend.getProject(id);

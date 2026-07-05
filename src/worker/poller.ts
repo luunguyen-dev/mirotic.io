@@ -38,11 +38,17 @@ export async function pollOnce(): Promise<void> {
         ? new Date(new Date(oldest).getTime() + CONFIG.buildWindowHours * 3600 * 1000).toISOString()
         : "?";
       log(`⏭️  đã thực thi ${inWindow}/${CONFIG.dailyBuildLimit} trong ${CONFIG.buildWindowHours}h qua — slot tiếp theo mở lúc ${nextSlot}`);
+      db.appendSystemLog("poller", `Gate ${inWindow}/${CONFIG.dailyBuildLimit} full — next slot ${nextSlot}`, "info").catch(() => {});
       return;
     }
     const job = await db.claimNextApproved();
-    if (!job) { log("⏳ chưa có ý tưởng status=approved"); return; }
+    if (!job) {
+      log("⏳ chưa có ý tưởng status=approved");
+      db.appendSystemLog("poller", "No approved jobs to build", "info").catch(() => {});
+      return;
+    }
     log(`▶️  build ${inWindow + 1}/${CONFIG.dailyBuildLimit} (rolling ${CONFIG.buildWindowHours}h): ${job.id}`);
+    db.appendSystemLog("poller", `Claimed ${job.id} for build (slot ${inWindow + 1}/${CONFIG.dailyBuildLimit})`, "summary").catch(() => {});
     await runBuild(job.id);
   }
 }
