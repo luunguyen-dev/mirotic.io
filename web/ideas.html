@@ -855,15 +855,34 @@ function renderSpotlight(jobs) {
     </div>
     <div class="heatmap">
       <div class="heatmap-title">${escapeHtml(t("spotlight.heatmap"))}</div>
-      <div class="heatmap-grid" id="heatmap-grid">${Array.from({length:24}, (_, i) => {
-        // Mock: pseudo-random by hash. Real fetch trong Phase 5.
-        const seed = (spot.id.length * (i + 3)) % 100 / 100;
-        const alpha = (0.1 + seed * 0.85).toFixed(2);
-        return `<div class="heatmap-cell" style="background:rgba(46,160,67,${alpha})"></div>`;
-      }).join("")}</div>
+      <div class="heatmap-grid" id="heatmap-grid">${Array.from({length:24}, () =>
+        `<div class="heatmap-cell" style="background:rgba(0,0,0,0.04)"></div>`
+      ).join("")}</div>
       <div class="heatmap-labels"><span>00h</span><span>12h</span><span>23h</span></div>
     </div>
   `;
+  // Fetch nhịp code từ GitHub events (account chính).
+  fetchHeatmap().then(data => paintHeatmap(data));
+}
+
+async function fetchHeatmap() {
+  try { return await fetch(`/api/heatmap`).then(r => r.json()); }
+  catch { return { hours: new Array(24).fill(0) }; }
+}
+function paintHeatmap(data) {
+  const cells = document.querySelectorAll("#heatmap-grid .heatmap-cell");
+  const hours = data?.hours ?? new Array(24).fill(0);
+  hours.forEach((intensity, i) => {
+    const cell = cells[i];
+    if (!cell) return;
+    if (intensity <= 0) {
+      // Stale (last cell) or no data → light empty.
+      cell.style.background = "rgba(0,0,0,0.04)";
+    } else {
+      const alpha = (0.15 + intensity * 0.75).toFixed(2);
+      cell.style.background = `rgba(46,160,67,${alpha})`;
+    }
+  });
 }
 
 function renderIdeasGrid(jobs) {
