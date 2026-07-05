@@ -72,7 +72,8 @@
   .drawer-header { padding: 20px 24px 14px; border-bottom: 1px solid #1c1c1f; flex-shrink: 0; }
   .drawer-header h3 { margin: 0 0 2px; font-size: 20px; font-weight: 500; padding-right: 40px; letter-spacing: -0.01em; }
   .drawer-header .title-vi { color: #888; font-style: italic; font-size: 14px; margin-bottom: 8px; }
-  .drawer-header .meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+  .drawer-header .header-pitch { color: #c8c8c8; font-size: 14px; line-height: 1.5; margin: 10px 0 4px; padding-left: 12px; border-left: 3px solid #7ba8e0; }
+  .drawer-header .meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
   .drawer-header .id { font-family: "SF Mono", Menlo, monospace; font-size: 11px; color: #666; }
   .drawer-header .status-badge { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; background: #1a1a1e; border: 1px solid #2a2a2e; color: #ddd; }
   .drawer-header .status-badge.proposed { background: #2a2a30; color: #b8b8c8; border-color: #3a3a44; }
@@ -751,6 +752,7 @@ async function openDrawer(id) {
     <div class="drawer-header">
       <h3${titleRawEn !== titleEn ? ` title="${escapeHtml(titleRawEn)}"` : ""}>${escapeHtml(titleEn)}</h3>
       ${titleVi && titleVi !== titleEn ? `<div class="title-vi"${titleRawVi !== titleVi ? ` title="${escapeHtml(titleRawVi)}"` : ""}>${escapeHtml(titleVi)}</div>` : ""}
+      ${pitchEn ? `<div class="header-pitch"${pitchVi && pitchVi !== pitchEn ? ` title="${escapeHtml(pitchVi)}"` : ""}>${escapeHtml(pitchEn)}</div>` : ""}
       <div class="meta-row">
         ${statusBadge}
         ${stars ? `<span class="stars">${stars}</span>` : ""}
@@ -768,7 +770,6 @@ async function openDrawer(id) {
     </div>
     <div class="drawer-body">
       <div class="drawer-pane active" data-pane="overview">
-        ${heroBlock}
         ${critiqueBlock}
         ${metaLine}
         ${builderPicker}
