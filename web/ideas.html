@@ -114,12 +114,22 @@
   .drawer .features-list li { position: relative; padding: 5px 0; color: #d8d8d8; font-size: 14px; line-height: 1.45; }
   .drawer .features-list li::before { content: "▸"; position: absolute; left: -16px; color: #7ba8e0; font-size: 13px; }
 
-  /* CEO critique — highlighted */
+  /* CEO critique — highlighted, structured list Strengths / Weaknesses / Verdict */
   .drawer .critique { background: linear-gradient(180deg, #1a1810 0%, #14140f 100%); border: 1px solid #3a3220; border-left: 3px solid #e0d47b; border-radius: 5px; padding: 14px 16px; margin-bottom: 18px; }
-  .drawer .critique .head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: #a89e6b; font-weight: 600; }
+  .drawer .critique .head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: #a89e6b; font-weight: 600; }
   .drawer .critique .stars { color: #e0d47b; font-size: 13px; letter-spacing: 2px; }
   .drawer .critique .en { color: #e8e4d0; font-size: 14px; line-height: 1.5; }
-  .drawer .critique .vi { color: #a89e88; font-style: italic; font-size: 13px; margin-top: 6px; line-height: 1.45; }
+  .drawer .critique-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .drawer .critique-list li { color: #e8e4d0; font-size: 13.5px; line-height: 1.55; padding-left: 22px; position: relative; }
+  .drawer .critique-list li::before { position: absolute; left: 0; top: 0; font-size: 14px; font-weight: 600; }
+  .drawer .critique-list li.strengths::before { content: "▲"; color: #a3d9a5; }
+  .drawer .critique-list li.weaknesses::before { content: "▼"; color: #e0a08a; }
+  .drawer .critique-list li.verdict::before { content: "◆"; color: #e0d47b; }
+  .drawer .critique-list li.neutral::before { content: "▸"; color: #a89e6b; font-size: 13px; top: 1px; }
+  .drawer .critique-list li .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; margin-right: 6px; }
+  .drawer .critique-list li.strengths .lbl { color: #a3d9a5; }
+  .drawer .critique-list li.weaknesses .lbl { color: #e0a08a; }
+  .drawer .critique-list li.verdict .lbl { color: #e0d47b; }
 
   /* Result URLs — big & clickable */
   .drawer .url-list .url-row { display: flex; align-items: baseline; gap: 12px; padding: 8px 12px; background: #0a0a0d; border: 1px solid #1c1c1f; border-radius: 5px; margin-bottom: 6px; }
@@ -654,10 +664,29 @@ async function openDrawer(id) {
   const hasError = !!j.error_detail;
   const progressBadge = (failedCount || hasError) ? `<span class="badge">${failedCount + (hasError ? 1 : 0)}</span>` : "";
 
-  const critiqueBlock = critique.en ? `<div class="critique">
-    <div class="head"><span>CEO Critique</span>${stars ? `<span class="stars">${stars}</span>` : ""}</div>
-    <div class="en"${critique.vi ? ` title="${escapeHtml(critique.vi)}"` : ""}>${escapeHtml(critique.en)}</div>
-  </div>` : "";
+  // CEO critique thành list — ưu tiên keyword Strengths/Weaknesses/Verdict; nếu không, tự split câu.
+  const critiqueBlock = (() => {
+    if (!critique.en) return "";
+    const parts = splitCritique(critique.en);
+    let inner;
+    if (parts) {
+      inner = `<ul class="critique-list">
+        ${parts.strengths ? `<li class="strengths"><span class="lbl">Strengths</span> ${escapeHtml(parts.strengths)}</li>` : ""}
+        ${parts.weaknesses ? `<li class="weaknesses"><span class="lbl">Weaknesses</span> ${escapeHtml(parts.weaknesses)}</li>` : ""}
+        ${parts.verdict ? `<li class="verdict"><span class="lbl">Verdict</span> ${escapeHtml(parts.verdict)}</li>` : ""}
+      </ul>`;
+    } else {
+      // Sentence-split fallback: mỗi câu → 1 bullet.
+      const sentences = critique.en.split(/(?<=[.?!])\s+(?=[A-Z])/).map(s => s.trim()).filter(Boolean);
+      inner = `<ul class="critique-list">
+        ${sentences.map(s => `<li class="neutral">${escapeHtml(s)}</li>`).join("")}
+      </ul>`;
+    }
+    return `<div class="critique"${critique.vi ? ` title="${escapeHtml(critique.vi)}"` : ""}>
+      <div class="head"><span>CEO Critique</span>${stars ? `<span class="stars">${stars}</span>` : ""}</div>
+      ${inner}
+    </div>`;
+  })();
 
   // Hero pitch — big italic quote ở đầu Overview để idea đọc lướt cũng nắm.
   const heroBlock = pitchEn ? `<blockquote class="hero-pitch"${pitchVi && pitchVi !== pitchEn ? ` title="${escapeHtml(pitchVi)}"` : ""}>${escapeHtml(pitchEn)}</blockquote>` : "";
@@ -877,6 +906,24 @@ function pickBuilder(key) {
 
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+
+// Split CEO critique thành 3 phần theo keyword. Null nếu không tìm thấy pattern.
+function splitCritique(text) {
+  const re = /(strengths?|weaknesses?|verdict)\s*:\s*/gi;
+  const marks = [];
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    marks.push({ key: m[1].toLowerCase().replace(/es$/, "s").replace(/s$/, ""), start: m.index, textStart: m.index + m[0].length });
+  }
+  if (marks.length < 2) return null;
+  const parts = { strengths: "", weaknesses: "", verdict: "" };
+  for (let i = 0; i < marks.length; i++) {
+    const end = i + 1 < marks.length ? marks[i + 1].start : text.length;
+    const key = marks[i].key === "strength" ? "strengths" : marks[i].key === "weakness" ? "weaknesses" : "verdict";
+    parts[key] = text.slice(marks[i].textStart, end).trim().replace(/[.\s]+$/, ".");
+  }
+  return parts;
 }
 
 // Manual idea modal ──────────────────────────────
