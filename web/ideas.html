@@ -1310,7 +1310,8 @@ function renderResult(result) {
     <code class="cli-hint-code">${escapeHtml(result.cliHint)}</code>
     <div class="cli-hint-note">QR code sẽ xuất hiện trong terminal. Mở Expo Go trên điện thoại → Scan.</div>
   </div>`);
-  if (result.error) rows.push(`<div class="url-err">${escapeHtml(result.error)}</div>`);
+  // KHÔNG render result.error ở đây — errorBlock (Progress pane top) đã hiển thị prominent
+  // qua j.error_detail. Trùng lặp làm rối.
   return rows.length ? `<div class="field"><label>Result</label><div class="url-list">${rows.join("")}</div></div>` : "";
 }
 
