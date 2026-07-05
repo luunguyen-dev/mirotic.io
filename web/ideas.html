@@ -148,7 +148,8 @@
 
   /* KPI row */
   .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-  .kpi { padding: 16px 18px; }
+  .kpi { padding: 16px 18px; cursor: pointer; transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s; }
+  .kpi:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(20,22,26,0.06); border-color: color-mix(in srgb, var(--tab-active-text) 25%, var(--border)); }
   .kpi-value { font-family: var(--font-mono); font-size: 26px; font-weight: 600; color: var(--text-strong); line-height: 1.1; }
   .kpi-value.green { color: var(--kpi-green); }
   .kpi-label { color: var(--muted); font-size: 12px; margin-top: 4px; }
@@ -484,10 +485,10 @@
 
   <main class="main-col">
     <div class="kpi-row">
-      <div class="d-card kpi"><div class="kpi-value" id="kpi-total">—</div><div class="kpi-label" data-i18n="kpi.total">Tổng ý tưởng</div></div>
-      <div class="d-card kpi"><div class="kpi-value green" id="kpi-demo">—</div><div class="kpi-label" data-i18n="kpi.demoReady">Demo-ready</div></div>
-      <div class="d-card kpi"><div class="kpi-value" id="kpi-deployed">—</div><div class="kpi-label" data-i18n="kpi.deployed">Đã deploy</div></div>
-      <div class="d-card kpi"><div class="kpi-value" id="kpi-gate">—</div><div class="kpi-label" data-i18n="kpi.gate">Gate 24h</div></div>
+      <div class="d-card kpi" onclick="toggleFilter(null)"><div class="kpi-value" id="kpi-total">—</div><div class="kpi-label" data-i18n="kpi.total">Tổng ý tưởng</div></div>
+      <div class="d-card kpi" onclick="toggleFilter('demo-ready')"><div class="kpi-value green" id="kpi-demo">—</div><div class="kpi-label" data-i18n="kpi.demoReady">Demo-ready</div></div>
+      <div class="d-card kpi" onclick="toggleFilter('deployed')"><div class="kpi-value" id="kpi-deployed">—</div><div class="kpi-label" data-i18n="kpi.deployed">Đã deploy</div></div>
+      <div class="d-card kpi" onclick="toggleFilter('building')"><div class="kpi-value" id="kpi-gate">—</div><div class="kpi-label" data-i18n="kpi.gate">24h</div></div>
     </div>
 
     <div class="d-card spotlight" id="spotlight"></div>
@@ -540,9 +541,9 @@ const I18N = {
   vi: {
     "nav.ideas": "Ideas", "nav.projects": "Projects",
     "pipeline.title": "Pipeline",
-    "pipeline.gate": "Gate 24h", "pipeline.conversion": "Chuyển đổi", "pipeline.deployedToday": "Đã deploy hôm nay",
-    "kpi.total": "Tổng ý tưởng", "kpi.demoReady": "Demo-ready", "kpi.deployed": "Đã deploy", "kpi.gate": "Gate 24h",
-    "spotlight.label": "Tiêu điểm", "spotlight.heatmap": "Nhịp code 24 giờ",
+    "pipeline.gate": "24h", "pipeline.conversion": "Chuyển đổi", "pipeline.deployedToday": "Today",
+    "kpi.total": "Tổng ý tưởng", "kpi.demoReady": "Demo-ready", "kpi.deployed": "Đã deploy", "kpi.gate": "24h",
+    "spotlight.label": "Spotlight", "spotlight.heatmap": "Nhịp code 24 giờ",
     "gallery.title": "Tất cả ý tưởng", "gallery.sorted": "xếp theo rating",
     "stage.proposed": "Đề xuất", "stage.approved": "Đã duyệt", "stage.building": "Đang build",
     "stage.demo-ready": "Sẵn sàng demo", "stage.deploy-requested": "Chờ deploy",
@@ -551,8 +552,8 @@ const I18N = {
   en: {
     "nav.ideas": "Ideas", "nav.projects": "Projects",
     "pipeline.title": "Pipeline",
-    "pipeline.gate": "Gate 24h", "pipeline.conversion": "Conversion", "pipeline.deployedToday": "Deployed today",
-    "kpi.total": "Total ideas", "kpi.demoReady": "Demo-ready", "kpi.deployed": "Deployed", "kpi.gate": "Gate 24h",
+    "pipeline.gate": "24h", "pipeline.conversion": "Conversion", "pipeline.deployedToday": "Today",
+    "kpi.total": "Total ideas", "kpi.demoReady": "Demo-ready", "kpi.deployed": "Deployed", "kpi.gate": "24h",
     "spotlight.label": "Spotlight", "spotlight.heatmap": "24-hour coding rhythm",
     "gallery.title": "All ideas", "gallery.sorted": "sorted by rating",
     "stage.proposed": "Proposed", "stage.approved": "Approved", "stage.building": "Building",
@@ -868,7 +869,7 @@ function renderSpotlight(jobs) {
   el.style.cursor = "pointer";
   el.innerHTML = `
     <div>
-      <span class="spot-badge" style="color:${cfg.color}"><span class="dot" style="background:${cfg.color}"></span>${escapeHtml(t(cfg.i18n))} · ${escapeHtml(t("spotlight.label"))}</span>
+      <span class="spot-badge" style="color:${cfg.color}"><span class="dot" style="background:${cfg.color}"></span>${escapeHtml(t("spotlight.label"))}</span>
       <h1 class="spot-title">${escapeHtml(title)}</h1>
       <p class="spot-desc">${escapeHtml(desc)}</p>
       <div class="spot-meta">${starsHTML(spot.ceo_rating)} ${stackTagHTML(stack)} ${cost ? `<span class="pill-cost">${cost}</span>` : ""} ${signal ? `<span class="pill-signal">${signal} signal</span>` : ""}</div>
