@@ -44,6 +44,52 @@ async function serveStatic(filePath: string): Promise<Response | null> {
   return new Response(html, { headers: { "Content-Type": "text/html" } });
 }
 
+// ─── Heatmap cache ─────────────────────────────────────
+// Aggregate GitHub public events của account chính (luunguyen-dev) — bin theo giờ 0-23,
+// normalize [0..1]. Cache 1h in-memory. Fail → dùng stale cached; ô 23 (mới nhất) = 0.
+type HeatmapEntry = { ts: number; hours: number[]; stale?: boolean };
+let heatmapCache: HeatmapEntry | null = null;
+const HEATMAP_TTL_MS = 60 * 60 * 1000;
+const HEATMAP_USER = process.env.HEATMAP_USER || CONFIG.githubOwner || "luunguyen-dev";
+
+async function fetchUserEventHours(user: string): Promise<number[]> {
+  const headers: Record<string, string> = { Accept: "application/vnd.github+json" };
+  const tok = process.env.GITHUB_TOKEN;
+  if (tok) headers.Authorization = `Bearer ${tok}`;
+  const res = await fetch(`https://api.github.com/users/${user}/events?per_page=100`,
+    { headers, signal: AbortSignal.timeout(8000) });
+  if (!res.ok) throw new Error(`GitHub ${res.status}`);
+  const events = (await res.json()) as Array<{ created_at?: string; type?: string; payload?: any }>;
+  const hours = new Array(24).fill(0);
+  for (const ev of events) {
+    if (!ev.created_at) continue;
+    // PushEvent: mỗi commit trong payload.commits = 1 điểm. Event khác = 0.5 điểm.
+    const weight = ev.type === "PushEvent" ? (ev.payload?.commits?.length ?? 1) : 0.5;
+    const d = new Date(ev.created_at);
+    if (!isNaN(d.getTime())) hours[d.getUTCHours()] += weight;
+  }
+  const max = Math.max(1, ...hours);
+  return hours.map((h) => h / max);
+}
+
+async function getHeatmap(_jobId: string): Promise<Response> {
+  const fresh = heatmapCache && Date.now() - heatmapCache.ts < HEATMAP_TTL_MS && !heatmapCache.stale;
+  if (fresh) return Response.json({ user: HEATMAP_USER, hours: heatmapCache!.hours, cached: true });
+  try {
+    const hours = await fetchUserEventHours(HEATMAP_USER);
+    heatmapCache = { ts: Date.now(), hours };
+    return Response.json({ user: HEATMAP_USER, hours, cached: false });
+  } catch (e: any) {
+    if (heatmapCache) {
+      const stale = [...heatmapCache.hours];
+      stale[23] = 0;
+      heatmapCache.stale = true;
+      return Response.json({ user: HEATMAP_USER, hours: stale, cached: true, stale: true, error: String(e?.message ?? e) });
+    }
+    return Response.json({ user: HEATMAP_USER, hours: new Array(24).fill(0), error: String(e?.message ?? e) });
+  }
+}
+
 export async function handleFetch(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname;
@@ -88,6 +134,10 @@ export async function handleFetch(req: Request): Promise<Response> {
     return Response.json({ ...job, signs: jobSigns(job.id), auto_recommended });
   }
   if (path === "/api/pool") return Response.json(await db.listPool(100));
+  // GET /api/heatmap — GitHub events của HEATMAP_USER bin theo giờ, cache 1h, stale fallback.
+  if (path === "/api/heatmap" || path.startsWith("/api/heatmap/")) {
+    return await getHeatmap("");
+  }
   // POST /api/ideas/manual — user nhập keyword/description, Prototyper enrich + CEO review + insert.
   // Body: { input: string }
   if (path === "/api/ideas/manual" && req.method === "POST") {
