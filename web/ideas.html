@@ -128,7 +128,8 @@
   .kpi-label { color: var(--muted); font-size: 12px; margin-top: 4px; }
 
   /* Spotlight card (skeleton — Phase 3 sẽ hoàn thiện heatmap) */
-  .spotlight { padding: 22px 26px; display: grid; grid-template-columns: 1fr 300px; gap: 26px; align-items: center; min-height: 200px; }
+  .spotlight { padding: 22px 26px; display: grid; grid-template-columns: 1fr 300px; gap: 26px; align-items: center; min-height: 200px; transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s; }
+  .spotlight:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(20,22,26,0.08); border-color: color-mix(in srgb, var(--tab-active-text) 25%, var(--border)); }
   .spot-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
   .spot-badge .dot { width: 8px; height: 8px; border-radius: 50%; }
   .spot-title { margin: 10px 0 6px; font-size: 26px; font-weight: 700; color: var(--text-strong); line-height: 1.2; letter-spacing: -0.015em; }
@@ -519,7 +520,7 @@ const I18N = {
   vi: {
     "nav.ideas": "Ideas", "nav.projects": "Projects",
     "pipeline.title": "Pipeline",
-    "pipeline.gate": "Gate 24h", "pipeline.conversion": "Chuyển đổi → Demo", "pipeline.deployedToday": "Đã deploy hôm nay",
+    "pipeline.gate": "Gate 24h", "pipeline.conversion": "Chuyển đổi", "pipeline.deployedToday": "Đã deploy hôm nay",
     "kpi.total": "Tổng ý tưởng", "kpi.demoReady": "Demo-ready", "kpi.deployed": "Đã deploy", "kpi.gate": "Gate 24h",
     "spotlight.label": "Tiêu điểm", "spotlight.heatmap": "Nhịp code 24 giờ",
     "gallery.title": "Tất cả ý tưởng", "gallery.sorted": "xếp theo rating",
@@ -530,7 +531,7 @@ const I18N = {
   en: {
     "nav.ideas": "Ideas", "nav.projects": "Projects",
     "pipeline.title": "Pipeline",
-    "pipeline.gate": "Gate 24h", "pipeline.conversion": "Conversion → Demo", "pipeline.deployedToday": "Deployed today",
+    "pipeline.gate": "Gate 24h", "pipeline.conversion": "Conversion", "pipeline.deployedToday": "Deployed today",
     "kpi.total": "Total ideas", "kpi.demoReady": "Demo-ready", "kpi.deployed": "Deployed", "kpi.gate": "Gate 24h",
     "spotlight.label": "Spotlight", "spotlight.heatmap": "24-hour coding rhythm",
     "gallery.title": "All ideas", "gallery.sorted": "sorted by rating",
@@ -843,6 +844,8 @@ function renderSpotlight(jobs) {
   const stack = spot.idea?.type || spot.type;
   const cost = spot.total_cost_usd ? `$${spot.total_cost_usd.toFixed(2)}` : "";
   const signal = spot.total_turns || 0;
+  el.onclick = () => openDrawer(spot.id);
+  el.style.cursor = "pointer";
   el.innerHTML = `
     <div>
       <span class="spot-badge" style="color:${cfg.color}"><span class="dot" style="background:${cfg.color}"></span>${escapeHtml(t(cfg.i18n))} · ${escapeHtml(t("spotlight.label"))}</span>
@@ -860,7 +863,6 @@ function renderSpotlight(jobs) {
       }).join("")}</div>
       <div class="heatmap-labels"><span>00h</span><span>12h</span><span>23h</span></div>
     </div>
-    <div style="grid-column: 1 / -1; margin-top: 6px"><button onclick="openDrawer('${escapeHtml(spot.id)}')" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px">${escapeHtml(t("spotlight.label"))} → ${escapeHtml(title)}</button></div>
   `;
 }
 
