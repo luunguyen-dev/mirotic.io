@@ -105,6 +105,15 @@
   .drawer .field .body-vi { color: #888; font-style: italic; font-size: 13px; margin-top: 4px; line-height: 1.5; }
   .drawer pre { background: #07070a; border: 1px solid #1c1c1f; border-radius: 5px; padding: 10px; overflow: auto; font-size: 12px; color: #ccc; max-height: 240px; }
 
+  /* Hero pitch — big italic quote highlight cho Overview */
+  .drawer .hero-pitch { margin: 0 0 18px; padding: 0 0 0 16px; border-left: 3px solid #7ba8e0; font-size: 17px; line-height: 1.5; color: #e8e8e8; font-style: italic; font-weight: 400; }
+  /* Meta line — compact type · hours · source */
+  .drawer .meta-line { margin-top: 16px; padding: 10px 12px; background: #0a0a0d; border: 1px solid #1c1c1f; border-radius: 5px; color: #888; font-size: 12px; font-family: "SF Mono", Menlo, monospace; }
+  /* Features as bullet list — cleaner than chips cho long text */
+  .drawer .features-list { margin: 0; padding-left: 22px; list-style: none; }
+  .drawer .features-list li { position: relative; padding: 5px 0; color: #d8d8d8; font-size: 14px; line-height: 1.45; }
+  .drawer .features-list li::before { content: "▸"; position: absolute; left: -16px; color: #7ba8e0; font-size: 13px; }
+
   /* CEO critique — highlighted */
   .drawer .critique { background: linear-gradient(180deg, #1a1810 0%, #14140f 100%); border: 1px solid #3a3220; border-left: 3px solid #e0d47b; border-radius: 5px; padding: 14px 16px; margin-bottom: 18px; }
   .drawer .critique .head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: #a89e6b; font-weight: 600; }
@@ -618,23 +627,20 @@ async function openDrawer(id) {
   const pitchVi = j.idea?.pitch_vi || j.idea?.pitch || "";
   const whyEn = j.idea?.why_en || j.idea?.why || "";
   const whyVi = j.idea?.why_vi || j.idea?.why || "";
-  const biField = (label, en, vi) => `<div class="field"><label>${label}</label>
-    <div class="body-txt">${escapeHtml(en || "—")}</div>
-    ${vi && vi !== en ? `<div class="body-vi">${escapeHtml(vi)}</div>` : ""}
-  </div>`;
+  // Single-lang field (EN primary, VI as title tooltip khi hover).
+  const field = (label, en, vi) => en ? `<div class="field"><label>${label}</label>
+    <div class="body-txt"${vi && vi !== en ? ` title="${escapeHtml(vi)}"` : ""}>${escapeHtml(en)}</div>
+  </div>` : "";
   const stars = j.ceo_rating ? "★".repeat(j.ceo_rating) + "☆".repeat(5 - j.ceo_rating) : "";
   let critique = {};
   try { critique = j.ceo_critique ? JSON.parse(j.ceo_critique) : {}; } catch {}
   const featEn = j.idea?.features_en || [];
   const featVi = j.idea?.features_vi || [];
-  const featBlock = featEn.length || featVi.length ? `<div class="field"><label>Features</label>
-    <div class="features">${featEn.map(f => `<span class="feat">${escapeHtml(f)}</span>`).join("")}</div>
-    ${featVi.length ? `<div class="features" style="margin-top:4px">${featVi.map(f => `<span class="feat" style="color:#888;font-style:italic">${escapeHtml(f)}</span>`).join("")}</div>` : ""}
+  const featBlock = featEn.length ? `<div class="field"><label>Features</label>
+    <ul class="features-list">${featEn.map((f, i) => `<li${featVi[i] ? ` title="${escapeHtml(featVi[i])}"` : ""}>${escapeHtml(f)}</li>`).join("")}</ul>
   </div>` : "";
-  const targetBlock = j.idea?.target_user_en || j.idea?.target_user_vi ? biField("Target user", j.idea?.target_user_en, j.idea?.target_user_vi) : "";
-  const whyNowBlock = j.idea?.why_now_en || j.idea?.why_now_vi ? biField("Why now", j.idea?.why_now_en, j.idea?.why_now_vi) : "";
-  const riskBlock = j.idea?.risk_en || j.idea?.risk_vi ? biField("Risk", j.idea?.risk_en, j.idea?.risk_vi) : "";
-  const hoursBlock = j.idea?.demo_hours ? `<div class="field"><label>Demo hours</label><div class="body-txt">${escapeHtml(j.idea.demo_hours + "h")}</div></div>` : "";
+  const targetBlock = field("Target user", j.idea?.target_user_en, j.idea?.target_user_vi);
+  const riskBlock = field("Risk", j.idea?.risk_en, j.idea?.risk_vi);
 
   const stepIcon = { pending: "○", in_progress: "◐", done: "✓", failed: "✗" };
   const stepsBlock = j.plan?.steps?.length ? `<div class="field"><label>Progress checklist</label>
@@ -648,11 +654,21 @@ async function openDrawer(id) {
   const hasError = !!j.error_detail;
   const progressBadge = (failedCount || hasError) ? `<span class="badge">${failedCount + (hasError ? 1 : 0)}</span>` : "";
 
-  const critiqueBlock = (critique.en || critique.vi) ? `<div class="critique">
+  const critiqueBlock = critique.en ? `<div class="critique">
     <div class="head"><span>CEO Critique</span>${stars ? `<span class="stars">${stars}</span>` : ""}</div>
-    ${critique.en ? `<div class="en">${escapeHtml(critique.en)}</div>` : ""}
-    ${critique.vi ? `<div class="vi">${escapeHtml(critique.vi)}</div>` : ""}
+    <div class="en"${critique.vi ? ` title="${escapeHtml(critique.vi)}"` : ""}>${escapeHtml(critique.en)}</div>
   </div>` : "";
+
+  // Hero pitch — big italic quote ở đầu Overview để idea đọc lướt cũng nắm.
+  const heroBlock = pitchEn ? `<blockquote class="hero-pitch"${pitchVi && pitchVi !== pitchEn ? ` title="${escapeHtml(pitchVi)}"` : ""}>${escapeHtml(pitchEn)}</blockquote>` : "";
+
+  // Compact meta strip — type · hours · source, một dòng.
+  const metaBits = [
+    j.idea?.type ? escapeHtml(j.idea.type) : "",
+    j.idea?.demo_hours ? `${j.idea.demo_hours}h` : "",
+    j.idea?.source ? escapeHtml(j.idea.source) : "",
+  ].filter(Boolean).join(" · ");
+  const metaLine = metaBits ? `<div class="meta-line">${metaBits}</div>` : "";
 
   const errorBlock = j.error_detail ? `<div class="error-box">
     <div class="lbl">Error</div>
@@ -682,17 +698,15 @@ async function openDrawer(id) {
     </div>
     <div class="drawer-body">
       <div class="drawer-pane active" data-pane="overview">
+        ${heroBlock}
         ${critiqueBlock}
-        ${biField("Pitch", pitchEn, pitchVi)}
-        <div class="field"><label>Type / Source</label><div class="body-txt">${escapeHtml(j.idea?.type || "?")} · ${escapeHtml(j.idea?.source || "?")}</div></div>
-        ${hoursBlock}
+        ${metaLine}
         ${builderPicker}
       </div>
       <div class="drawer-pane" data-pane="idea">
-        ${biField("Why", whyEn, whyVi)}
+        ${field("Why", whyEn, whyVi)}
         ${featBlock}
         ${targetBlock}
-        ${whyNowBlock}
         ${riskBlock}
       </div>
       <div class="drawer-pane" data-pane="progress">
