@@ -247,11 +247,7 @@
 <div class="drawer" id="events-drawer">
   <button class="close" onclick="closeEventsDrawer()">×</button>
   <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
-    <div class="drawer-header">
-      <h3>System events</h3>
-      <div class="title-vi">Trace mọi summary + error từ mọi job</div>
-    </div>
-    <div id="events-filter" style="padding:10px 24px;border-bottom:1px solid #1c1c1f;display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0"></div>
+    <div id="events-filter" style="padding:16px 24px 10px;border-bottom:1px solid #1c1c1f;display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0;padding-right:44px"></div>
     <div class="drawer-body" style="padding:0">
       <table id="events-table" style="width:100%;border-collapse:collapse;font-family:'SF Mono',Menlo,monospace;font-size:11px"></table>
     </div>
@@ -408,7 +404,6 @@ function renderEventsDrawer() {
 
   const filtered = eventsFilterExecutor ? eventsAll.filter(e => slugOf(e.job_id) === eventsFilterExecutor) : eventsAll;
   tableEl.innerHTML = `
-    <thead><tr><th style="min-width:140px">Time</th><th style="min-width:160px">Executor</th><th>Message</th></tr></thead>
     <tbody>${filtered.map(e => {
       const d = new Date(e.ts);
       const ts = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")} ${d.toLocaleTimeString("en-GB", { hour12: false })}`;
