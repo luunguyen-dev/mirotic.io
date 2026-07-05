@@ -124,6 +124,7 @@ interface Backend {
   // job_logs
   appendLog(jobId: string, line: string, level?: string): Promise<void>;
   getLogs(jobId: string, sinceId: number, limit: number): Promise<LogEntry[]>;
+  getEvents(sinceId: number, limit: number): Promise<Array<LogEntry & { title: string | null }>>;
   // projects + issues (P1)
   createProject(p: Omit<Project, "created_at" | "updated_at">): Promise<void>;
   getProject(id: string): Promise<Project | null>;
@@ -249,6 +250,16 @@ function pgBackend(url: string): Backend {
     async getLogs(jobId, sinceId, limit) {
       const r = await sql`SELECT id, job_id, ts, level, line FROM job_logs
         WHERE job_id = ${jobId} AND id > ${sinceId} ORDER BY id ASC LIMIT ${limit}`;
+      return r as any;
+    },
+    async getEvents(sinceId, limit) {
+      // Cross-cut events: summary + error lines từ mọi job, join với title từ idea_json.
+      const r = await sql`SELECT l.id, l.job_id, l.ts, l.level, l.line,
+        (jobs.idea_json::json->>'title') AS title
+        FROM job_logs l
+        LEFT JOIN jobs ON jobs.id = l.job_id
+        WHERE l.level IN ('summary', 'error') AND l.id > ${sinceId}
+        ORDER BY l.id DESC LIMIT ${limit}`;
       return r as any;
     },
     async createProject(p) {
@@ -404,6 +415,13 @@ function sqliteBackend(): Backend {
       return db.query(`SELECT id, job_id, ts, level, line FROM job_logs
         WHERE job_id = ? AND id > ? ORDER BY id ASC LIMIT ?`).all(jobId, sinceId, limit) as any;
     },
+    async getEvents(sinceId, limit) {
+      return db.query(`SELECT l.id, l.job_id, l.ts, l.level, l.line,
+        json_extract(jobs.idea_json, '$.title') AS title
+        FROM job_logs l LEFT JOIN jobs ON jobs.id = l.job_id
+        WHERE l.level IN ('summary','error') AND l.id > ?
+        ORDER BY l.id DESC LIMIT ?`).all(sinceId, limit) as any;
+    },
     async createProject() { throw new Error("projects not supported in SQLite backend"); },
     async getProject() { return null; },
     async getProjectBySlug() { return null; },
@@ -452,6 +470,7 @@ export const listPool = (limit = 50) => backend.listPool(limit);
 export const markPoolPromoted = (id: string) => backend.markPoolPromoted(id);
 export const appendLog = (jobId: string, line: string, level = "info") => backend.appendLog(jobId, line, level);
 export const getLogs = (jobId: string, sinceId = 0, limit = 500) => backend.getLogs(jobId, sinceId, limit);
+export const getEvents = (sinceId = 0, limit = 100) => backend.getEvents(sinceId, limit);
 // P1 — projects + issues
 export const createProject = (p: Omit<Project, "created_at" | "updated_at">) => backend.createProject(p);
 export const getProject = (id: string) => backend.getProject(id);

@@ -180,6 +180,19 @@
   .running-bar .none { color: #555; font-style: italic; font-size: 11px; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
+  /* Event stream — latest system events line by line */
+  .event-stream { background: #0a0a0d; border-bottom: 1px solid #1c1c1f; max-height: 140px; overflow-y: auto; font-family: "SF Mono", Menlo, monospace; font-size: 11px; }
+  .event-stream .empty { color: #555; padding: 8px 20px; font-style: italic; }
+  .event-stream .event { display: flex; gap: 12px; padding: 3px 20px; cursor: pointer; border-left: 2px solid transparent; transition: background 0.1s; }
+  .event-stream .event:hover { background: #12121a; }
+  .event-stream .event.error { border-left-color: #6e2d2d; }
+  .event-stream .event.summary { border-left-color: #2d6e54; }
+  .event-stream .event .t { color: #666; flex-shrink: 0; }
+  .event-stream .event .j { color: #7ba8e0; min-width: 180px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .event-stream .event .msg { color: #ccc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .event-stream .event.error .msg { color: #e0a0a0; }
+  .event-stream .event.summary .msg { color: #a3d9a5; }
+
   /* Manual idea modal */
   .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 50; align-items: center; justify-content: center; }
   .modal-backdrop.open { display: flex; }
@@ -225,6 +238,7 @@
 </div>
 
 <div class="running-bar" id="running-bar"></div>
+<div class="event-stream" id="event-stream"><div class="empty">loading…</div></div>
 
 <div class="board" id="board"></div>
 <div class="drawer" id="drawer">
@@ -336,7 +350,34 @@ async function renderStatusBar() {
     ? `<span class="label">đang chạy</span>${pills.join("")}`
     : `<span class="none">không có executor nào đang xử lý</span>`;
 
-  bar.innerHTML = `${gate}${nextSlotStat}<span class="sep"></span>${queue}${modelCoolStat}<span class="sep"></span>${nextStat}${retryStat}${pollStat}<span class="sep"></span>${runningBlock}`;
+  // Tối giản: chỉ giữ GATE + filter pills + optional next-slot/retry/model-cool chỉ khi có thông tin.
+  bar.innerHTML = `${gate}${nextSlotStat}<span class="sep"></span>${queue}${modelCoolStat}${retryStat}`;
+}
+
+// Event stream — cross-cut summary+error logs mọi job, latest at top, tick every 5s.
+let eventLatestId = 0;
+let eventInitialLoaded = false;
+async function renderEventStream() {
+  const el = document.getElementById("event-stream");
+  if (!el) return;
+  try {
+    const events = await fetch(`/api/events?limit=50`).then(r => r.json());
+    if (!events?.length) {
+      if (!eventInitialLoaded) el.innerHTML = `<div class="empty">chưa có sự kiện</div>`;
+      return;
+    }
+    eventInitialLoaded = true;
+    // Reverse để hiển thị newest at top (getEvents returns DESC).
+    el.innerHTML = events.map(e => {
+      const t = new Date(e.ts).toLocaleTimeString("en-GB", { hour12: false });
+      const slug = (e.job_id || "").replace(/^\d{4}-\d{2}-\d{2}-/, "");
+      const cls = e.level === "error" ? "error" : "summary";
+      return `<div class="event ${cls}" onclick="openDrawer('${escapeHtml(e.job_id)}')">
+        <span class="t">${t}</span><span class="j">${escapeHtml(slug)}</span><span class="msg">${escapeHtml(e.line || "")}</span>
+      </div>`;
+    }).join("");
+    eventLatestId = events[0]?.id ?? eventLatestId;
+  } catch {}
 }
 
 // Filter state cho board — click stat trong running-bar để set/clear.
@@ -350,6 +391,7 @@ async function load() {
   const jobs = await fetch("/api/jobs").then(r => r.json());
   document.getElementById("meta").textContent = `${jobs.length} jobs · refreshed ${new Date().toLocaleTimeString("en-GB", { hour12: false })}`;
   renderStatusBar();
+  renderEventStream();
   const board = document.getElementById("board");
   board.innerHTML = "";
   for (const [key, label] of COLS) {
@@ -785,6 +827,8 @@ document.addEventListener("click", e => {
 });
 load();
 setInterval(load, 15_000);
+// Event stream tick nhanh hơn để thấy sự kiện mới trong lúc build đang chạy.
+setInterval(renderEventStream, 5_000);
 // Tick mỗi 1s để elapsed time của job đang chạy + countdown model cool cập nhật mượt.
 setInterval(() => {
   document.querySelectorAll("[data-tick]").forEach(el => {

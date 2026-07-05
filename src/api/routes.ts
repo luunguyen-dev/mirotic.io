@@ -68,6 +68,12 @@ export async function handleFetch(req: Request): Promise<Response> {
     }));
     return Response.json(detailed.filter(Boolean));
   }
+  // GET /api/events?since=N&limit=N — cross-cut summary/error logs mọi job (event stream).
+  if (path === "/api/events") {
+    const since = Number(url.searchParams.get("since") ?? "0") | 0;
+    const limit = Math.min(200, Number(url.searchParams.get("limit") ?? "50") | 0 || 50);
+    return Response.json(await db.getEvents(since, limit));
+  }
   // GET /api/jobs/:id/logs?since=N — trả entries mới sau id N
   if (path.startsWith("/api/jobs/") && path.endsWith("/logs")) {
     const jobId = path.slice("/api/jobs/".length, -"/logs".length);
