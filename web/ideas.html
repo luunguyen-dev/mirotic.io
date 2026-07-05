@@ -1329,6 +1329,7 @@ function renderResult(result) {
   const rows = [];
   const urlBits = [
     ["Local", result.localUrl, "docker local"],
+    ["LAN", result.lanUrl, "phone/máy khác cùng WiFi"],
     ["Expo", result.expoUrl, "scan QR bằng Expo Go"],
     ["APK", result.apkUrl, "Android download"],
     ["Deployed", result.deployedUrl, "live production"],

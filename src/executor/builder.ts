@@ -27,6 +27,23 @@ import { sendEmail, demoReadyEmail } from "../util/email";
 import { generateDetailedPlan, updatePlanStep } from "./planner";
 import type { Idea, Plan, Result } from "../types";
 
+// Detect LAN IP của Mac worker (IPv4 non-internal) — để phone/máy khác cùng WiFi truy cập demo.
+// Return null nếu không tìm được.
+function detectLanIP(): string | null {
+  try {
+    const os = require("node:os");
+    const ifs = os.networkInterfaces() as Record<string, Array<{ address: string; family: string; internal: boolean }>>;
+    for (const name of Object.keys(ifs)) {
+      for (const info of ifs[name] ?? []) {
+        if (info.family === "IPv4" && !info.internal && info.address && !info.address.startsWith("169.254.")) {
+          return info.address;
+        }
+      }
+    }
+  } catch {}
+  return null;
+}
+
 const hash = (s: string) => {
   let h = 0;
   for (const c of s) h = (h * 31 + c.charCodeAt(0)) | 0;
@@ -490,11 +507,20 @@ Nếu container không lên trong 30s → log stderr và exit non-zero. KHÔNG h
   const isMobileType = idea.type === "mobile-expo";
   if (CONFIG.useRealClaude && !localAlreadyDone) {
     if (isMobileType) {
-      // Mobile: NOT auto-start tunnel (dễ timeout do @expo/ngrok install lazy + non-interactive quirks).
-      // Thay vào đó, ghi hint command để user tự chạy khi cần quét QR.
-      // Expo Go tunnel URL sẽ được điền sau khi user chạy tay (tương lai có thể thêm nút "Start tunnel" trên dashboard).
-      await updatePlanStep(id, "local", "done", `cd ${cwd} && npx expo start --tunnel`);
-      jLog(id, `[expo] scaffold sẵn. Chạy tay: cd ${cwd} && npx expo start --tunnel — sẽ có QR trong terminal`, "summary");
+      // Mobile: auto-start `expo start --web` background trên Mac worker.
+      // Bundle react-native-web ra http://localhost:<port> — user click Local link để mở browser.
+      // Fallback: cliHint để user chạy tay `expo start` (LAN) hoặc `expo start --tunnel` (QR).
+      jLog(id, `[expo] npx expo start --web --port ${localPort} (background)`);
+      await updatePlanStep(id, "local", "in_progress");
+      const startResult = await startExpoWeb(cwd, id, localPort);
+      if (!startResult.url) {
+        // Không dừng build — mark done với cliHint để user vẫn chạy tay được.
+        jLog(id, `[expo] auto-start web fail (${startResult.error?.slice(0, 80)}), fallback → cliHint`, "error");
+        await updatePlanStep(id, "local", "done", `cd ${cwd} && npx expo start --web`);
+      } else {
+        await updatePlanStep(id, "local", "done", startResult.url);
+        jLog(id, `[expo] web preview: ${startResult.url}`, "summary");
+      }
     } else {
       // Web/full-stack/cli/browser-extension: docker compose up
       await Bun.write(`${cwd}/docker-compose.override.yml`,
@@ -528,23 +554,67 @@ Nếu container không lên trong 30s → log stderr và exit non-zero. KHÔNG h
     } catch {}
   }
 
+  // Mobile: localUrl = expo web preview (Metro serve trên localPort). Nếu web start fail
+  // thì stepStatus("local") note giữ nguyên cliHint và localUrl có thể trống.
+  const localNote = (plan.steps ?? []).find((s: any) => s.key === "local")?.note as string | undefined;
+  const localUrlFromStep = localNote?.startsWith("http") ? localNote : undefined;
+  const lanIP = detectLanIP();
+  const lanUrl = lanIP
+    ? (isMobileType
+        ? (localUrlFromStep ? localUrlFromStep.replace(/localhost/, lanIP) : undefined)
+        : `http://${lanIP}:${localPort}`)
+    : undefined;
   const result: Result = {
     repoUrl: repoUrl || `https://github.com/${CONFIG.githubOwner}/mirotic-${idea.slug}`,
     branch: "main",
-    localUrl: isMobileType ? "" : `http://localhost:${localPort}`,
+    localUrl: isMobileType ? (localUrlFromStep ?? "") : `http://localhost:${localPort}`,
+    ...(lanUrl ? { lanUrl } : {}),
     ...(expoUrl ? { expoUrl } : {}),
     ...(expoQr ? { expoQr } : {}),
-    ...(isMobileType ? { cliHint: `cd ${cwd} && npx expo start --tunnel` } : {}),
+    ...(isMobileType ? { cliHint: `cd ${cwd} && npx expo start --tunnel   # quét QR bằng Expo Go trên điện thoại` } : {}),
   };
   await db.setResult(id, result, "demo-ready");
   await sendEmail(`🧪 Demo sẵn sàng: ${idea.title}`, demoReadyEmail(idea, result), "demo-ready");
   jLog(id, `✓ demo-ready · test: ${isMobileType ? (expoUrl ?? "expo tunnel") : result.localUrl} · repo: ${result.repoUrl}`, "summary");
 }
 
-// Chạy `npx expo start --tunnel --non-interactive` ở background, parse stdout tìm exp://u.expo.dev/...
-// Return { url, qr } khi tunnel ready; error nếu timeout hoặc parse fail.
-// KHÔNG kill process — để tunnel alive cho user quét QR.
-async function startExpoTunnel(cwd: string, jobId: string, port: number): Promise<{ url?: string; qr?: string; error?: string }> {
+// Chạy `npx expo start --web --port N` ở background, poll HTTP để chờ Metro serve URL.
+// Return { url } khi HTTP 200; error nếu timeout. KHÔNG kill process (user browse).
+async function startExpoWeb(cwd: string, jobId: string, port: number): Promise<{ url?: string; error?: string }> {
+  const url = `http://localhost:${port}`;
+  const proc = Bun.spawn(
+    ["npx", "expo", "start", "--web", "--port", String(port)],
+    { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env, CI: "1", EXPO_NO_TELEMETRY: "1", BROWSER: "none" } }
+  );
+  // Log stdout songsong (non-blocking) — không gate cho phần chờ HTTP.
+  (async () => {
+    const reader = proc.stdout.getReader(); const dec = new TextDecoder();
+    for (;;) {
+      const { value, done } = await reader.read().catch(() => ({ value: undefined, done: true }));
+      if (done) break;
+      const chunk = dec.decode(value!, { stream: true });
+      await db.appendLog(jobId, chunk.trim().slice(0, 300), "tool").catch(() => {});
+    }
+  })().catch(() => {});
+  // Poll HTTP mỗi 5s tới 3 phút — Metro bundle lần đầu có thể chậm.
+  const timeoutMs = 180_000;
+  const startAt = Date.now();
+  while (Date.now() - startAt < timeoutMs) {
+    if (proc.exitCode !== null) {
+      return { error: `expo start exited early code=${proc.exitCode}` };
+    }
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(3000) });
+      if (r.status < 500) return { url };
+    } catch {}
+    await new Promise((res) => setTimeout(res, 5000));
+  }
+  proc.kill();
+  return { error: `HTTP ${url} không lên sau ${timeoutMs}ms` };
+}
+
+// (legacy) Chạy `npx expo start --tunnel --non-interactive` — giữ nếu tương lai cần QR flow.
+async function _startExpoTunnel(cwd: string, jobId: string, port: number): Promise<{ url?: string; qr?: string; error?: string }> {
   const QRCode = await import("qrcode").catch(() => null);
   if (!QRCode) return { error: "qrcode package chưa cài (npm install qrcode)" };
   const proc = Bun.spawn(

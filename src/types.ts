@@ -42,7 +42,8 @@ export type Plan = {
 export type Result = {
   repoUrl: string;
   branch: string;
-  localUrl: string;      // web: http://localhost:3xxx
+  localUrl: string;      // web: http://localhost:3xxx (chỉ Mac worker truy cập)
+  lanUrl?: string;       // web: http://<mac-LAN-IP>:3xxx (phone/máy khác cùng WiFi truy cập)
   deployedUrl?: string;  // web: https://<slug>.luunguyen.dev
   publicPort?: number;
   error?: string;
