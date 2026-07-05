@@ -93,6 +93,71 @@
   header .icon-btn:hover { background: var(--bar-track); color: var(--text-strong); }
   header .icon-btn.primary { background: var(--tab-active-text); border-color: var(--tab-active-text); color: #fff; font-size: 17px; font-weight: 600; }
   header .icon-btn.primary:hover { filter: brightness(0.92); }
+
+  /* ────────── Dashboard layout ────────── */
+  .dashboard { display: grid; grid-template-columns: 308px 1fr; gap: 22px; padding: 22px; height: calc(100vh - 56px); overflow: hidden; }
+  .sidebar, .main-col { overflow-y: auto; min-width: 0; }
+  .main-col { display: flex; flex-direction: column; gap: 18px; padding-right: 4px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; }
+  .section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); padding: 16px 18px 8px; }
+
+  /* Pipeline funnel */
+  .funnel-card { padding-bottom: 12px; }
+  #funnel-bars { padding: 4px 18px 10px; display: flex; flex-direction: column; gap: 8px; }
+  .fbar { cursor: pointer; }
+  .fbar-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
+  .fbar-head .name { color: var(--text); font-weight: 500; display: inline-flex; align-items: center; gap: 8px; }
+  .fbar-head .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .fbar-head .count { color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .fbar-track { height: 6px; background: var(--bar-track); border-radius: 3px; margin-top: 6px; overflow: hidden; }
+  .fbar-fill { height: 100%; border-radius: 3px; transition: width 0.2s ease; }
+  .fbar.active .fbar-head .name { color: var(--text-strong); font-weight: 600; }
+  .fbar.active .fbar-track { box-shadow: 0 0 0 2px var(--bar-track), 0 0 0 3px currentColor; }
+  .fbar:hover .fbar-track { background: color-mix(in srgb, var(--bar-track) 60%, var(--border) 40%); }
+  .funnel-footer { border-top: 1px solid var(--bar-track); margin-top: 8px; padding: 12px 18px 6px; display: flex; flex-direction: column; gap: 10px; }
+  .fstat { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; }
+  .fstat-label { color: var(--muted); }
+  .fstat-value { color: var(--text-strong); font-weight: 600; font-family: var(--font-mono); }
+  .fstat-value.gate { color: var(--tab-active-text); }
+
+  /* KPI row */
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .kpi { padding: 16px 18px; }
+  .kpi-value { font-family: var(--font-mono); font-size: 26px; font-weight: 600; color: var(--text-strong); line-height: 1.1; }
+  .kpi-value.green { color: var(--kpi-green); }
+  .kpi-label { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+  /* Spotlight card (skeleton — Phase 3 sẽ hoàn thiện heatmap) */
+  .spotlight { padding: 22px 26px; display: grid; grid-template-columns: 1fr 300px; gap: 26px; align-items: center; min-height: 200px; }
+  .spot-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+  .spot-badge .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .spot-title { margin: 10px 0 6px; font-size: 26px; font-weight: 700; color: var(--text-strong); line-height: 1.2; letter-spacing: -0.015em; }
+  .spot-desc { color: var(--muted); font-size: 15px; line-height: 1.5; max-width: 520px; margin: 0 0 14px; }
+  .spot-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .heatmap { background: var(--bar-track); border-radius: 10px; padding: 12px; }
+  .heatmap-grid { display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: repeat(2, 1fr); gap: 3px; }
+  .heatmap-cell { aspect-ratio: 1; border-radius: 4px; background: rgba(46,160,67,0.1); }
+  .heatmap-labels { display: flex; justify-content: space-between; margin-top: 6px; font-family: var(--font-mono); font-size: 10px; color: var(--faint); }
+  .heatmap-title { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-bottom: 8px; }
+
+  /* Ideas gallery */
+  .gallery-head { display: flex; align-items: baseline; justify-content: space-between; margin: 4px 4px 12px; }
+  .gallery-head h2 { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-strong); text-transform: uppercase; letter-spacing: 0.06em; }
+  .gallery-sorted { color: var(--faint); font-family: var(--font-mono); font-size: 11px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .grid .idea-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; cursor: pointer; transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease; display: flex; flex-direction: column; gap: 8px; }
+  .grid .idea-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(20,22,26,0.06); }
+  .idea-card .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .idea-card .stage-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .idea-card .stage-badge .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .idea-card .stars { color: var(--star); font-size: 12px; letter-spacing: 1px; }
+  .idea-card .stars .empty { color: var(--star-empty); }
+  .idea-card .name { font-size: 14.5px; font-weight: 600; color: var(--text-strong); line-height: 1.3; letter-spacing: -0.005em; }
+  .idea-card .desc { font-size: 12.5px; color: var(--muted); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .idea-card .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .stack-tag { padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 500; border: 1px solid; }
+  .pill-cost { padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 500; font-family: var(--font-mono); background: var(--cost-bg); color: var(--cost-text); }
+  .pill-signal { padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 500; font-family: var(--font-mono); background: var(--signal-bg); color: var(--signal-text); }
   .board { display: grid; grid-template-columns: repeat(7, minmax(200px, 1fr)); gap: 12px; padding: 16px; height: calc(100vh - 113px); overflow-x: auto; }
   .col { background: #111114; border: 1px solid #1c1c1f; border-radius: 8px; display: flex; flex-direction: column; min-height: 0; }
   .col h2 { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin: 0; padding: 10px 12px; border-bottom: 1px solid #1c1c1f; display: flex; justify-content: space-between; }
@@ -360,6 +425,40 @@
   <button class="icon-btn" onclick="load()" title="Refresh">↻</button>
 </header>
 
+<!-- ═══════════ New dashboard layout ═══════════ -->
+<div class="dashboard">
+  <aside class="sidebar">
+    <div class="card funnel-card">
+      <div class="section-title" data-i18n="pipeline.title">Pipeline</div>
+      <div id="funnel-bars"></div>
+      <div class="funnel-footer">
+        <div class="fstat"><span class="fstat-label" data-i18n="pipeline.gate">Gate 24h</span><span class="fstat-value gate" id="stat-gate">—</span></div>
+        <div class="fstat"><span class="fstat-label" data-i18n="pipeline.conversion">Chuyển đổi → Demo</span><span class="fstat-value" id="stat-conversion">—</span></div>
+        <div class="fstat"><span class="fstat-label" data-i18n="pipeline.deployedToday">Đã deploy hôm nay</span><span class="fstat-value" id="stat-deployed-today">—</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-col">
+    <div class="kpi-row">
+      <div class="card kpi"><div class="kpi-value" id="kpi-total">—</div><div class="kpi-label" data-i18n="kpi.total">Tổng ý tưởng</div></div>
+      <div class="card kpi"><div class="kpi-value green" id="kpi-demo">—</div><div class="kpi-label" data-i18n="kpi.demoReady">Demo-ready</div></div>
+      <div class="card kpi"><div class="kpi-value" id="kpi-deployed">—</div><div class="kpi-label" data-i18n="kpi.deployed">Đã deploy</div></div>
+      <div class="card kpi"><div class="kpi-value" id="kpi-gate">—</div><div class="kpi-label" data-i18n="kpi.gate">Gate 24h</div></div>
+    </div>
+
+    <div class="card spotlight" id="spotlight"></div>
+
+    <div class="gallery">
+      <div class="gallery-head">
+        <h2 data-i18n="gallery.title">Tất cả ý tưởng</h2>
+        <span class="gallery-sorted" data-i18n="gallery.sorted">xếp theo rating</span>
+      </div>
+      <div class="grid" id="ideas-grid"></div>
+    </div>
+  </main>
+</div>
+
 <div class="modal-backdrop" id="manual-backdrop" onclick="if(event.target===this)closeManualModal()">
   <div class="modal">
     <h3>New idea</h3>
@@ -374,7 +473,7 @@
   </div>
 </div>
 
-<div class="running-bar" id="running-bar"></div>
+<div class="running-bar" id="running-bar" style="display:none"></div>
 
 <div class="drawer" id="events-drawer">
   <button class="close" onclick="closeEventsDrawer()">×</button>
@@ -386,7 +485,7 @@
   </div>
 </div>
 
-<div class="board" id="board"></div>
+<div class="board" id="board" style="display:none"></div>
 <div class="drawer" id="drawer">
   <button class="close" onclick="closeDrawer()">×</button>
   <div id="drawer-content" style="display:flex;flex-direction:column;height:100%;overflow:hidden"></div>
@@ -637,15 +736,153 @@ function toggleFilter(status) {
   load();
 }
 
+// ────────── Dashboard render (Phase 2+) ──────────
+// Stage config: key, i18n key, accent CSS var
+const STAGES = [
+  { key: "proposed",         i18n: "stage.proposed",         color: "var(--stage-proposed)" },
+  { key: "approved",         i18n: "stage.approved",         color: "var(--stage-approved)" },
+  { key: "building",         i18n: "stage.building",         color: "var(--stage-building)" },
+  { key: "demo-ready",       i18n: "stage.demo-ready",       color: "var(--stage-demo)" },
+  { key: "deploy-requested", i18n: "stage.deploy-requested", color: "var(--stage-deploy-req)" },
+  { key: "deployed",         i18n: "stage.deployed",         color: "var(--stage-deployed)" },
+  { key: "failed",           i18n: "stage.failed",           color: "var(--stage-failed)" },
+];
+const STACK_COLORS = { "web-frontend": "var(--stack-web)", "cli": "var(--stack-cli)", "browser-extension": "var(--stack-ext)", "mobile-expo": "var(--stack-mobile)" };
+const STACK_HEX = { "web-frontend": "#9a7be0", "cli": "#5b95f2", "browser-extension": "#c079dd", "mobile-expo": "#e39457" };
+
+function stageOf(j) {
+  if (j.status === "rejected") return "failed";
+  if (j.status === "deploying") return "deploy-requested";
+  return j.status;
+}
+function starsHTML(rating) {
+  const r = rating || 0;
+  return `<span class="stars">${"★".repeat(r)}<span class="empty">${"☆".repeat(5 - r)}</span></span>`;
+}
+function stackTagHTML(stack) {
+  if (!stack) return "";
+  const hex = STACK_HEX[stack] || "#888";
+  return `<span class="stack-tag" style="color:${hex};background:${hex}16;border-color:${hex}40">${escapeHtml(stack)}</span>`;
+}
+function stageBadgeHTML(stage) {
+  const cfg = STAGES.find(s => s.key === stage) || STAGES[0];
+  return `<span class="stage-badge"><span class="dot" style="background:${cfg.color}"></span>${escapeHtml(t(cfg.i18n))}</span>`;
+}
+
+async function loadStatusCache() {
+  try { return await fetch("/api/status").then(r => r.json()); } catch { return null; }
+}
+
+function renderPipeline(jobs, status) {
+  const counts = Object.fromEntries(STAGES.map(s => [s.key, 0]));
+  for (const j of jobs) counts[stageOf(j)] = (counts[stageOf(j)] || 0) + 1;
+  const maxCount = Math.max(1, ...Object.values(counts));
+  const el = document.getElementById("funnel-bars");
+  el.innerHTML = STAGES.map(s => {
+    const c = counts[s.key];
+    const w = Math.max(3, Math.round((c / maxCount) * 100));
+    const active = filterStatus === s.key ? "active" : "";
+    return `<div class="fbar ${active}" onclick="toggleFilter('${s.key}')" style="color:${s.color}">
+      <div class="fbar-head"><span class="name"><span class="dot" style="background:${s.color}"></span>${escapeHtml(t(s.i18n))}</span><span class="count">${c}</span></div>
+      <div class="fbar-track"><div class="fbar-fill" style="width:${w}%;background:${s.color}"></div></div>
+    </div>`;
+  }).join("");
+  // Footer stats
+  if (status) {
+    document.getElementById("stat-gate").textContent = `${status.startedInWindow} / ${status.dailyLimit}`;
+    document.getElementById("stat-deployed-today").textContent = counts["deployed"];
+  }
+  const demoOrLater = counts["demo-ready"] + counts["deploy-requested"] + counts["deployed"];
+  const conv = jobs.length > 0 ? Math.round((demoOrLater / jobs.length) * 100) : 0;
+  document.getElementById("stat-conversion").textContent = `${conv}%`;
+}
+
+function renderKPI(jobs, status) {
+  document.getElementById("kpi-total").textContent = jobs.length;
+  const demo = jobs.filter(j => j.status === "demo-ready").length;
+  document.getElementById("kpi-demo").textContent = demo;
+  const deployed = jobs.filter(j => j.status === "deployed").length;
+  document.getElementById("kpi-deployed").textContent = deployed;
+  if (status) document.getElementById("kpi-gate").textContent = `${status.startedInWindow}/${status.dailyLimit}`;
+}
+
+function renderSpotlight(jobs) {
+  const el = document.getElementById("spotlight");
+  // Pick: first deployed, else highest rating
+  const spot = jobs.find(j => j.status === "deployed")
+    || [...jobs].sort((a, b) => (b.ceo_rating ?? 0) - (a.ceo_rating ?? 0))[0];
+  if (!spot) { el.innerHTML = ""; el.style.display = "none"; return; }
+  el.style.display = "grid";
+  const stage = stageOf(spot);
+  const cfg = STAGES.find(s => s.key === stage) || STAGES[0];
+  const titleRaw = spot.idea?.title_en || spot.title || spot.id;
+  const title = titleRaw.split(/\s+[—–-]\s+/)[0].trim() || titleRaw;
+  const desc = spot.idea?.pitch_en || spot.idea?.pitch || "";
+  const stack = spot.idea?.type || spot.type;
+  const cost = spot.total_cost_usd ? `$${spot.total_cost_usd.toFixed(2)}` : "";
+  const signal = spot.total_turns || 0;
+  el.innerHTML = `
+    <div>
+      <span class="spot-badge" style="color:${cfg.color}"><span class="dot" style="background:${cfg.color}"></span>${escapeHtml(t(cfg.i18n))} · ${escapeHtml(t("spotlight.label"))}</span>
+      <h1 class="spot-title">${escapeHtml(title)}</h1>
+      <p class="spot-desc">${escapeHtml(desc)}</p>
+      <div class="spot-meta">${starsHTML(spot.ceo_rating)} ${stackTagHTML(stack)} ${cost ? `<span class="pill-cost">${cost}</span>` : ""} ${signal ? `<span class="pill-signal">${signal} signal</span>` : ""}</div>
+    </div>
+    <div class="heatmap">
+      <div class="heatmap-title">${escapeHtml(t("spotlight.heatmap"))}</div>
+      <div class="heatmap-grid" id="heatmap-grid">${Array.from({length:24}, (_, i) => {
+        // Mock: pseudo-random by hash. Real fetch trong Phase 5.
+        const seed = (spot.id.length * (i + 3)) % 100 / 100;
+        const alpha = (0.1 + seed * 0.85).toFixed(2);
+        return `<div class="heatmap-cell" style="background:rgba(46,160,67,${alpha})"></div>`;
+      }).join("")}</div>
+      <div class="heatmap-labels"><span>00h</span><span>12h</span><span>23h</span></div>
+    </div>
+    <div style="grid-column: 1 / -1; margin-top: 6px"><button onclick="openDrawer('${escapeHtml(spot.id)}')" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px">${escapeHtml(t("spotlight.label"))} → ${escapeHtml(title)}</button></div>
+  `;
+}
+
+function renderIdeasGrid(jobs) {
+  const grid = document.getElementById("ideas-grid");
+  // Sort: rating desc, tie total_turns desc. Failed at bottom.
+  const failed = jobs.filter(j => stageOf(j) === "failed");
+  const active = jobs.filter(j => stageOf(j) !== "failed");
+  const sortFn = (a, b) => (b.ceo_rating ?? 0) - (a.ceo_rating ?? 0) || (b.total_turns ?? 0) - (a.total_turns ?? 0);
+  active.sort(sortFn); failed.sort(sortFn);
+  const list = filterStatus ? jobs.filter(j => stageOf(j) === filterStatus) : [...active, ...failed];
+  grid.innerHTML = list.map(j => {
+    const titleRaw = j.idea?.title_en || j.title || j.id;
+    const title = titleRaw.split(/\s+[—–-]\s+/)[0].trim() || titleRaw;
+    const desc = j.idea?.pitch_en || j.idea?.pitch || "";
+    const stack = j.idea?.type || j.type;
+    const stage = stageOf(j);
+    const cost = j.total_cost_usd ? `$${j.total_cost_usd.toFixed(2)}` : "";
+    const signal = j.total_turns || 0;
+    return `<div class="idea-card" onclick="openDrawer('${escapeHtml(j.id)}')">
+      <div class="top">${stageBadgeHTML(stage)}${starsHTML(j.ceo_rating)}</div>
+      <div class="name">${escapeHtml(title)}</div>
+      <div class="desc">${escapeHtml(desc)}</div>
+      <div class="meta">${stackTagHTML(stack)} ${cost ? `<span class="pill-cost">${cost}</span>` : ""} ${signal ? `<span class="pill-signal">${signal}</span>` : ""}</div>
+    </div>`;
+  }).join("");
+}
+
 async function load() {
-  const jobs = await fetch("/api/jobs").then(r => r.json());
+  const [jobs, status] = await Promise.all([
+    fetch("/api/jobs").then(r => r.json()),
+    loadStatusCache(),
+  ]);
   const refreshedAt = new Date().toLocaleTimeString("en-GB", { hour12: false });
   const metaEl = document.getElementById("meta");
   metaEl.textContent = `${jobs.length} · ${refreshedAt}`;
   metaEl.title = `${jobs.length} jobs · refreshed ${refreshedAt}`;
-  renderStatusBar();
+  renderPipeline(jobs, status);
+  renderKPI(jobs, status);
+  renderSpotlight(jobs);
+  renderIdeasGrid(jobs);
   // Nếu events drawer đang mở, refresh nội dung.
   if (eventsDrawerOpen) fetchEvents().then(renderEventsDrawer);
+  // (Legacy Kanban rendering giữ để backfill state — sẽ xoá ở Phase 4.)
   const board = document.getElementById("board");
   board.innerHTML = "";
   for (const [key, label] of COLS) {
