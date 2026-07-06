@@ -175,6 +175,9 @@
   .heatmap-title { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-bottom: 8px; }
 
   /* Ideas gallery */
+  .today-gallery { position: relative; }
+  .today-gallery .gallery-head h2 { color: var(--tab-active-text); }
+  .today-gallery .gallery-head h2::before { content: "●"; color: var(--tab-active-text); margin-right: 6px; animation: pulse 2s infinite; }
   .gallery-head { display: flex; align-items: baseline; justify-content: space-between; margin: 4px 4px 12px; }
   .gallery-head h2 { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-strong); text-transform: uppercase; letter-spacing: 0.06em; }
   .gallery-sorted { color: var(--faint); font-family: var(--font-mono); font-size: 11px; }
@@ -501,6 +504,14 @@
 
     <div class="d-card spotlight" id="spotlight"></div>
 
+    <div class="gallery today-gallery" id="today-gallery" style="display:none">
+      <div class="gallery-head">
+        <h2 data-i18n="gallery.today">Ideas hôm nay</h2>
+        <span class="gallery-sorted" id="today-count"></span>
+      </div>
+      <div class="grid" id="today-grid"></div>
+    </div>
+
     <div class="gallery">
       <div class="gallery-head">
         <h2 data-i18n="gallery.title">Tất cả ý tưởng</h2>
@@ -552,7 +563,7 @@ const I18N = {
     "pipeline.gate": "24h", "pipeline.conversion": "Chuyển đổi", "pipeline.deployedToday": "Today",
     "kpi.total": "Tổng ý tưởng", "kpi.demoReady": "Demo-ready", "kpi.deployed": "Đã deploy", "kpi.gate": "24h",
     "spotlight.label": "Spotlight", "spotlight.heatmap": "Nhịp code 24 giờ",
-    "gallery.title": "Tất cả ý tưởng", "gallery.sorted": "xếp theo rating",
+    "gallery.title": "Tất cả ý tưởng", "gallery.sorted": "xếp theo rating", "gallery.today": "Ý tưởng hôm nay",
     "stage.proposed": "Đề xuất", "stage.approved": "Đã duyệt", "stage.building": "Đang build",
     "stage.demo-ready": "Sẵn sàng demo", "stage.deploy-requested": "Chờ deploy",
     "stage.deployed": "Đã deploy", "stage.failed": "Thất bại / Từ chối",
@@ -563,7 +574,7 @@ const I18N = {
     "pipeline.gate": "24h", "pipeline.conversion": "Conversion", "pipeline.deployedToday": "Today",
     "kpi.total": "Total ideas", "kpi.demoReady": "Demo-ready", "kpi.deployed": "Deployed", "kpi.gate": "24h",
     "spotlight.label": "Spotlight", "spotlight.heatmap": "24-hour coding rhythm",
-    "gallery.title": "All ideas", "gallery.sorted": "sorted by rating",
+    "gallery.title": "All ideas", "gallery.sorted": "sorted by rating", "gallery.today": "Today's ideas",
     "stage.proposed": "Proposed", "stage.approved": "Approved", "stage.building": "Building",
     "stage.demo-ready": "Demo Ready", "stage.deploy-requested": "Deploy Requested",
     "stage.deployed": "Deployed", "stage.failed": "Failed / Rejected",
@@ -932,29 +943,56 @@ function paintHeatmap(data) {
   });
 }
 
+function ideaCardHTML(j) {
+  const titleRaw = j.idea?.title_en || j.title || j.id;
+  const title = titleRaw.split(/\s+[—–-]\s+/)[0].trim() || titleRaw;
+  const desc = j.idea?.pitch_en || j.idea?.pitch || "";
+  const stack = j.idea?.type || j.type;
+  const stage = stageOf(j);
+  const cost = j.total_cost_usd ? `$${j.total_cost_usd.toFixed(2)}` : "";
+  const signal = j.total_turns || 0;
+  return `<div class="idea-card" onclick="openDrawer('${escapeHtml(j.id)}')">
+    <div class="top">${stageBadgeHTML(stage)}${starsHTML(j.ceo_rating)}</div>
+    <div class="name">${escapeHtml(title)}</div>
+    <div class="desc">${escapeHtml(desc)}</div>
+    <div class="meta">${stackTagHTML(stack)} ${cost ? `<span class="pill-cost">${cost}</span>` : ""} ${signal ? `<span class="pill-signal">${signal}</span>` : ""}</div>
+  </div>`;
+}
+
+// Local date key (UTC+7) — dùng cho filter Today.
+function todayLocalKey() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() + d.getTimezoneOffset() + 7 * 60);
+  return d.toISOString().slice(0, 10);
+}
+function createdLocalKey(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  d.setMinutes(d.getMinutes() + d.getTimezoneOffset() + 7 * 60);
+  return d.toISOString().slice(0, 10);
+}
+
+function renderTodayGrid(jobs) {
+  const today = todayLocalKey();
+  const list = jobs.filter(j => createdLocalKey(j.created_at) === today);
+  const wrap = document.getElementById("today-gallery");
+  const countEl = document.getElementById("today-count");
+  const grid = document.getElementById("today-grid");
+  if (!list.length) { wrap.style.display = "none"; return; }
+  wrap.style.display = "";
+  list.sort((a, b) => (b.ceo_rating ?? 0) - (a.ceo_rating ?? 0) || (b.total_turns ?? 0) - (a.total_turns ?? 0));
+  countEl.textContent = `${list.length} idea${list.length > 1 ? "s" : ""} · ${today}`;
+  grid.innerHTML = list.map(ideaCardHTML).join("");
+}
+
 function renderIdeasGrid(jobs) {
   const grid = document.getElementById("ideas-grid");
-  // Sort: rating desc, tie total_turns desc. Failed at bottom.
   const failed = jobs.filter(j => stageOf(j) === "failed");
   const active = jobs.filter(j => stageOf(j) !== "failed");
   const sortFn = (a, b) => (b.ceo_rating ?? 0) - (a.ceo_rating ?? 0) || (b.total_turns ?? 0) - (a.total_turns ?? 0);
   active.sort(sortFn); failed.sort(sortFn);
   const list = filterStatus ? jobs.filter(j => stageOf(j) === filterStatus) : [...active, ...failed];
-  grid.innerHTML = list.map(j => {
-    const titleRaw = j.idea?.title_en || j.title || j.id;
-    const title = titleRaw.split(/\s+[—–-]\s+/)[0].trim() || titleRaw;
-    const desc = j.idea?.pitch_en || j.idea?.pitch || "";
-    const stack = j.idea?.type || j.type;
-    const stage = stageOf(j);
-    const cost = j.total_cost_usd ? `$${j.total_cost_usd.toFixed(2)}` : "";
-    const signal = j.total_turns || 0;
-    return `<div class="idea-card" onclick="openDrawer('${escapeHtml(j.id)}')">
-      <div class="top">${stageBadgeHTML(stage)}${starsHTML(j.ceo_rating)}</div>
-      <div class="name">${escapeHtml(title)}</div>
-      <div class="desc">${escapeHtml(desc)}</div>
-      <div class="meta">${stackTagHTML(stack)} ${cost ? `<span class="pill-cost">${cost}</span>` : ""} ${signal ? `<span class="pill-signal">${signal}</span>` : ""}</div>
-    </div>`;
-  }).join("");
+  grid.innerHTML = list.map(ideaCardHTML).join("");
 }
 
 async function load() {
@@ -969,6 +1007,7 @@ async function load() {
   renderPipeline(jobs, status);
   renderKPI(jobs, status);
   renderSpotlight(jobs);
+  renderTodayGrid(jobs);
   renderIdeasGrid(jobs);
   // Nếu events drawer đang mở, refresh nội dung.
   if (eventsDrawerOpen) fetchEvents().then(renderEventsDrawer);
