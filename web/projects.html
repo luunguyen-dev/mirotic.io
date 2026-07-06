@@ -56,7 +56,16 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; font: 14px/1.5 var(--font-ui); background: var(--app-bg); color: var(--text); }
-  header { padding: 0 22px; height: 56px; display: flex; align-items: center; gap: 12px; background: var(--card); }
+  header { padding: 0 22px; height: 56px; display: flex; align-items: center; gap: 12px; background: var(--card); position: sticky; top: 0; z-index: 5; }
+  header .nav .nav-icon { display: none; }
+  @media (max-width: 560px) {
+    header .nav .nav-text { display: none; }
+    header .nav .nav-icon { display: inline; font-size: 16px; }
+    header .nav { padding: 5px 9px; }
+    header { padding: 0 12px; gap: 8px; }
+    header h1 { font-size: 15px; }
+    header .meta { display: none; }
+  }
   header h1 { font-size: 18px; margin: 0; font-weight: 700; letter-spacing: -0.01em; color: var(--text-strong); }
   header .nav { color: var(--muted); font-size: 13px; font-weight: 500; text-decoration: none; padding: 6px 14px; border-radius: 999px; }
   header .nav.active { background: var(--tab-active-bg); color: var(--tab-active-text); font-weight: 600; }
@@ -122,8 +131,8 @@
 
 <header>
   <h1>Mirotic</h1>
-  <a href="/ideas" class="nav" data-i18n="nav.ideas">Ideas</a>
-  <a href="/projects" class="nav active" data-i18n="nav.projects">Projects</a>
+  <a href="/ideas" class="nav" title="Ideas"><span class="nav-icon">💡</span><span class="nav-text" data-i18n="nav.ideas">Ideas</span></a>
+  <a href="/projects" class="nav active" title="Projects"><span class="nav-icon">📂</span><span class="nav-text" data-i18n="nav.projects">Projects</span></a>
   <span style="flex:1"></span>
   <span class="meta" id="meta" title="loading…">—</span>
   <button class="icon-btn toggle-btn" id="lang-btn" onclick="toggleLang()" title="Language">VI</button>

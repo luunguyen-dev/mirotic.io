@@ -76,7 +76,10 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; font: 14px/1.5 var(--font-ui); background: var(--app-bg); color: var(--text); }
-  header { padding: 0 22px; height: 56px; display: flex; align-items: center; gap: 12px; background: var(--card); }
+  header { padding: 0 22px; height: 56px; display: flex; align-items: center; gap: 12px; background: var(--card); position: sticky; top: 0; z-index: 5; }
+  /* Icon-only variant cho nav khi chật */
+  header .nav .nav-icon { display: none; }
+  header .nav.active .nav-icon { display: inline; }
   header h1 { font-size: 18px; margin: 0; font-weight: 700; letter-spacing: -0.01em; color: var(--text-strong); }
   header .nav { color: var(--muted); font-size: 13px; font-weight: 500; text-decoration: none; padding: 6px 14px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; }
   header .nav.active { background: var(--tab-active-bg); color: var(--tab-active-text); font-weight: 600; }
@@ -104,8 +107,8 @@
     .kpi-row { grid-template-columns: repeat(2, 1fr) !important; }
     .spotlight { grid-template-columns: 1fr !important; }
     .grid { grid-template-columns: repeat(2, 1fr) !important; }
-    header { padding: 0 14px; flex-wrap: wrap; height: auto; min-height: 56px; gap: 8px; }
-    header h1 { font-size: 16px; }
+    header { padding: 0 12px; height: 56px; min-height: 56px; gap: 8px; flex-wrap: nowrap; }
+    header h1 { font-size: 15px; }
     header .nav { padding: 5px 10px; font-size: 12px; }
     header .meta { font-size: 11px; }
     body { overflow-x: hidden; }
@@ -119,8 +122,11 @@
     .spot-title { font-size: 22px !important; }
     .heatmap-grid { grid-template-columns: repeat(8, 1fr) !important; grid-template-rows: repeat(3, 1fr) !important; }
     header .meta { display: none; }
-    .segmented button { padding: 3px 8px; font-size: 11px; min-width: 24px; }
     header .icon-btn { width: 30px; height: 30px; font-size: 14px; }
+    /* Ẩn text nav — chỉ hiện icon */
+    header .nav .nav-text { display: none; }
+    header .nav .nav-icon { display: inline; font-size: 16px; }
+    header .nav { padding: 5px 9px; }
   }
   .sidebar, .main-col { min-width: 0; }
   .main-col { display: flex; flex-direction: column; gap: 18px; }
@@ -178,8 +184,9 @@
   .idea-card .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .idea-card .stage-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
   .idea-card .stage-badge .dot { width: 7px; height: 7px; border-radius: 50%; }
-  .idea-card .stars { color: var(--star); font-size: 12px; letter-spacing: 1px; }
+  .idea-card .stars { color: var(--star); font-size: 12px; letter-spacing: 1px; white-space: nowrap; flex-shrink: 0; }
   .idea-card .stars .empty { color: var(--star-empty); }
+  .spot-meta .stars, .drawer-header .stars, .drawer .critique .stars { white-space: nowrap; }
   .idea-card .name { font-size: 14.5px; font-weight: 600; color: var(--text-strong); line-height: 1.3; letter-spacing: -0.005em; }
   .idea-card .desc { font-size: 12.5px; color: var(--muted); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .idea-card .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -458,8 +465,8 @@
 
 <header>
   <h1>Mirotic</h1>
-  <a href="/ideas" class="nav active" data-i18n="nav.ideas">Ideas</a>
-  <a href="/projects" class="nav" data-i18n="nav.projects">Projects</a>
+  <a href="/ideas" class="nav active" title="Ideas"><span class="nav-icon">💡</span><span class="nav-text" data-i18n="nav.ideas">Ideas</span></a>
+  <a href="/projects" class="nav" title="Projects"><span class="nav-icon">📂</span><span class="nav-text" data-i18n="nav.projects">Projects</span></a>
   <span style="flex:1"></span>
   <span class="meta" id="meta" title="loading…">—</span>
   <button class="icon-btn toggle-btn" id="lang-btn" onclick="toggleLang()" title="Language">VI</button>
@@ -725,12 +732,24 @@ function renderEventsDrawer() {
     counts[s] = (counts[s] || 0) + 1;
     if (!(s in firstSeen)) firstSeen[s] = i;
   });
-  // Sort: chip đang selected pin vị trí 2 (ngay sau "all"); còn lại sort theo event mới nhất.
-  const executors = Object.entries(counts).sort((a, b) => {
+  // Sort ưu tiên: prototyper → ceo → auto-approve → còn lại theo event mới nhất DESC.
+  // Selected chip vẫn pin lên đầu (sau all).
+  const PRIORITY_ACTORS = ["prototyper", "ceo", "auto-approve"];
+  const priIdx = (k) => {
+    const idx = PRIORITY_ACTORS.indexOf(k);
+    return idx === -1 ? 999 : idx;
+  };
+  const allExecutors = Object.entries(counts).sort((a, b) => {
     if (a[0] === eventsFilterExecutor) return -1;
     if (b[0] === eventsFilterExecutor) return 1;
+    const pa = priIdx(a[0]), pb = priIdx(b[0]);
+    if (pa !== pb) return pa - pb;
     return firstSeen[a[0]] - firstSeen[b[0]];
   });
+  // Max 10 chip, phần dư gộp thành "+N".
+  const MAX_CHIPS = 10;
+  const executors = allExecutors.slice(0, MAX_CHIPS);
+  const remaining = allExecutors.length - executors.length;
 
   filterEl.innerHTML = `
     <span class="filter-chip ${eventsFilterExecutor === null ? "active" : ""}" onclick="event.stopPropagation(); pickEventsFilter(null)">all<span class="count">${eventsAll.length}</span></span>
@@ -739,6 +758,7 @@ function renderEventsDrawer() {
       const activeCls = eventsFilterExecutor === key ? " active" : "";
       return `<span class="filter-chip${systemCls}${activeCls}" onclick="event.stopPropagation(); pickEventsFilter('${escapeHtml(key)}')">${escapeHtml(key)}<span class="count">${n}</span></span>`;
     }).join("")}
+    ${remaining > 0 ? `<span class="filter-chip more" title="${remaining} more executors">+${remaining}</span>` : ""}
   `;
 
   const filtered = eventsFilterExecutor ? eventsAll.filter(e => executorOf(e) === eventsFilterExecutor) : eventsAll;
