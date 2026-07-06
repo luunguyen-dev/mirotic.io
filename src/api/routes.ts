@@ -258,8 +258,8 @@ export async function handleFetch(req: Request): Promise<Response> {
   }
 
   // ─── Static views ────────────────────────────────────────
-  if (path === "/" || path === "/index.html") return Response.redirect("/ideas", 302);
-  if (path === "/ideas" || path === "/ideas/") {
+  // Root / ideas: same page. / là canonical, /ideas giữ để tránh 404 với link cũ.
+  if (path === "/" || path === "/index.html" || path === "/ideas" || path === "/ideas/") {
     const r = await serveStatic(`${import.meta.dir}/../../web/ideas.html`);
     if (r) return r;
   }
