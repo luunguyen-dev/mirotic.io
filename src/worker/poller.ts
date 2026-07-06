@@ -18,13 +18,57 @@ import { log } from "../util/logger";
 import { deploy } from "../executor/deployer";
 import { runBuild } from "../executor/builder";
 import { seedEmptyProjects } from "../projects";
+import { ceoReview } from "../executor/ceo";
+// CONFIG đã import ở line 15 — chỉ cần dùng.
+
+// Scan job proposed thiếu ceo_rating → thử review lại. Tối đa 5 job/cycle để tránh burn cost khi
+// LLM đang cool. LLM tự fallback qua registry — nếu vẫn fail, cycle sau retry.
+async function backfillCeoReviews(): Promise<void> {
+  const jobs = await db.listJobs(200);
+  const missing: string[] = [];
+  for (const meta of jobs) {
+    const full = await db.getJob(meta.id);
+    if (!full || full.status !== "proposed") continue;
+    if (full.ceo_rating != null) continue;
+    missing.push(full.id);
+    if (missing.length >= 5) break;
+  }
+  if (!missing.length) return;
+  log(`🏛  Backfill CEO review cho ${missing.length} job proposed thiếu critique`);
+  db.appendSystemLog("ceo", `Backfill start: ${missing.length} jobs`, "summary").catch(() => {});
+  for (const id of missing) {
+    const job = await db.getJob(id);
+    if (!job?.idea) continue;
+    try {
+      const r = await ceoReview(job.idea);
+      if (r) {
+        await db.setCeoReview(id, r.rating, JSON.stringify(r.critique));
+        log(`   ✓ ${id}: ${r.rating}⭐`);
+        db.appendSystemLog("ceo", `${id}: ${r.rating}⭐ (backfill)`, "summary").catch(() => {});
+        // Auto-approve nếu rating >= threshold config (mirror api/routes.ts).
+        if (CONFIG.autoApproveMinRating > 0 && r.rating >= CONFIG.autoApproveMinRating) {
+          await db.setStatus(id, "approved");
+          db.appendSystemLog("auto-approve", `${id} → approved (${r.rating}⭐ ≥ ${CONFIG.autoApproveMinRating})`, "summary").catch(() => {});
+        }
+      } else {
+        log(`   ✗ ${id}: CEO returned null (LLM cool?), sẽ thử cycle sau`);
+      }
+    } catch (e: any) {
+      log(`   ✗ ${id}: ${e?.message ?? e}`);
+    }
+  }
+}
 
 export async function pollOnce(): Promise<void> {
   // 1) Deploy requests (không giới hạn theo ngày)
   let d = await db.claimNextDeployRequested();
   while (d) { await deploy(d.id); d = await db.claimNextDeployRequested(); }
 
-  // 2) Seed empty projects (LLM cần Claude auth — chỉ chạy trên worker Mac)
+  // 2) Backfill CEO review cho job proposed chưa có critique (LLM có thể đã cool down khi review async fail).
+  try { await backfillCeoReviews(); }
+  catch (e: any) { log(`(backfillCeoReviews err: ${e?.message ?? e})`); }
+
+  // 3) Seed empty projects (LLM cần Claude auth — chỉ chạy trên worker Mac)
   try { await seedEmptyProjects(); }
   catch (e: any) { log(`(seedEmptyProjects err: ${e?.message ?? e})`); }
 
