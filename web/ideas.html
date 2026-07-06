@@ -184,9 +184,10 @@
   .idea-card .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .idea-card .stage-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
   .idea-card .stage-badge .dot { width: 7px; height: 7px; border-radius: 50%; }
-  .idea-card .stars { color: var(--star); font-size: 12px; letter-spacing: 1px; white-space: nowrap; flex-shrink: 0; }
-  .idea-card .stars .empty { color: var(--star-empty); }
-  .spot-meta .stars, .drawer-header .stars, .drawer .critique .stars { white-space: nowrap; }
+  /* Stars — inline, tách filled + empty bằng nested span .e, không letter-spacing để tránh gap */
+  .stars { display: inline-block; color: var(--star); white-space: nowrap; flex-shrink: 0; letter-spacing: 0; }
+  .stars .e { color: var(--star-empty); }
+  .idea-card .stars { font-size: 12px; }
   .idea-card .name { font-size: 14.5px; font-weight: 600; color: var(--text-strong); line-height: 1.3; letter-spacing: -0.005em; }
   .idea-card .desc { font-size: 12.5px; color: var(--muted); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .idea-card .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -256,7 +257,7 @@
   .drawer-header .status-badge.demo-ready, .drawer-header .status-badge[class*="demo"] { color: var(--stage-demo); background: color-mix(in srgb, var(--stage-demo) 12%, var(--card)); border-color: color-mix(in srgb, var(--stage-demo) 30%, var(--border)); }
   .drawer-header .status-badge.deployed  { color: var(--stage-deployed);   background: color-mix(in srgb, var(--stage-deployed) 12%, var(--card)); border-color: color-mix(in srgb, var(--stage-deployed) 30%, var(--border)); }
   .drawer-header .status-badge.failed, .drawer-header .status-badge.rejected { color: var(--stage-failed); background: color-mix(in srgb, var(--stage-failed) 12%, var(--card)); border-color: color-mix(in srgb, var(--stage-failed) 30%, var(--border)); }
-  .drawer-header .stars { color: var(--star); font-size: 15px; letter-spacing: 2px; }
+  .drawer-header .stars { color: var(--star); font-size: 15px; letter-spacing: 0; }
   .drawer-header .builder-chip { font-size: 12px; color: var(--muted); margin-left: auto; }
   .drawer-header .type-chip { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 500; letter-spacing: 0.03em; background: color-mix(in srgb, var(--stack-web) 12%, var(--card)); color: var(--stack-web); border: 1px solid color-mix(in srgb, var(--stack-web) 30%, var(--border)); }
   .drawer-header .turns-chip { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 500; background: var(--signal-bg); color: var(--signal-text); border: 1px solid color-mix(in srgb, var(--signal-text) 20%, var(--border)); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
@@ -292,7 +293,7 @@
 
   .drawer .critique { background: color-mix(in srgb, var(--star) 6%, var(--card)); border: 1px solid color-mix(in srgb, var(--star) 25%, var(--border)); border-left: 3px solid var(--star); border-radius: 8px; padding: 14px 16px; margin-bottom: 18px; }
   .drawer .critique .head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
-  .drawer .critique .stars { color: var(--star); font-size: 13px; letter-spacing: 2px; }
+  .drawer .critique .stars { color: var(--star); font-size: 13px; letter-spacing: 0; }
   .drawer .critique .en { color: var(--text); font-size: 14px; line-height: 1.5; }
   .drawer .critique-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
   .drawer .critique-list li { color: var(--text); font-size: 13.5px; line-height: 1.55; padding-left: 22px; position: relative; }
@@ -820,8 +821,13 @@ function stageOf(j) {
   return j.status;
 }
 function starsHTML(rating) {
-  const r = rating || 0;
-  return `<span class="stars">${"★".repeat(r)}<span class="empty">${"☆".repeat(5 - r)}</span></span>`;
+  const r = Math.max(0, Math.min(5, rating || 0));
+  // Render inline không nested — dùng CSS color của span data-empty để tô riêng.
+  const cells = [];
+  for (let i = 0; i < 5; i++) {
+    cells.push(i < r ? "★" : `<span class="e">☆</span>`);
+  }
+  return `<span class="stars">${cells.join("")}</span>`;
 }
 function stackTagHTML(stack) {
   if (!stack) return "";
