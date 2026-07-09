@@ -776,8 +776,7 @@ function renderEventsDrawer() {
   const filtered = eventsFilterExecutor ? eventsAll.filter(e => executorOf(e) === eventsFilterExecutor) : eventsAll;
   tableEl.innerHTML = `
     <tbody>${filtered.map(e => {
-      const d = new Date(e.ts);
-      const ts = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")} ${d.toLocaleTimeString("en-GB", { hour12: false })}`;
+      const ts = fmtTs(e.ts);
       const exec = executorOf(e);
       const isSystem = !e.job_id;
       const cls = e.level === "error" ? "error" : "summary";
@@ -1321,8 +1320,7 @@ async function loadProgressFallback(jobId) {
   const slug = jobId.replace(/^\d{4}-\d{2}-\d{2}-/, "");
   // Newest at top — matches events drawer.
   const rows = summary.slice().reverse().map(l => {
-    const d = new Date(l.ts);
-    const ts = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")} ${d.toLocaleTimeString("en-GB", { hour12: false })}`;
+    const ts = fmtTs(l.ts);
     const cls = l.level === "error" ? "color:#e0a0a0" : "color:#a3d9a5";
     return `<tr style="${cls}">
       <td style="padding:3px 8px 3px 0;color:#555;white-space:nowrap">${ts}</td>
@@ -1346,7 +1344,7 @@ async function pollLogs() {
   if (!tail || currentDrawerJob !== jobId) return;
   if (logSinceId === 0) tail.innerHTML = "";
   for (const l of logs) {
-    const ts = l.ts?.slice(11, 19) ?? "";
+    const ts = fmtTs(l.ts);
     const line = document.createElement("div");
     line.className = `log-line ${l.level || "info"}`;
     line.innerHTML = `<span class="ts">${escapeHtml(ts)}</span><span class="lv">${levelIcon(l.level)}</span>${linkify(l.line || "")}`;
@@ -1354,6 +1352,21 @@ async function pollLogs() {
     logSinceId = Math.max(logSinceId, l.id);
   }
   tail.scrollTop = tail.scrollHeight;
+}
+
+// Format UTC ISO ts → local time "YYYY-MM-DD HH:MM:SS". Return "" nếu invalid.
+function fmtTs(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")} ${d.toLocaleTimeString("en-GB", { hour12: false })}`;
+}
+// Time-only variant (dùng cho compact display).
+function fmtTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("en-GB", { hour12: false });
 }
 
 function levelIcon(lv) {
