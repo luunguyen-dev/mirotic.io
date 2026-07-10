@@ -1354,12 +1354,14 @@ async function pollLogs() {
   tail.scrollTop = tail.scrollHeight;
 }
 
-// Format UTC ISO ts → local time "YYYY-MM-DD HH:MM:SS". Return "" nếu invalid.
+// Format UTC ISO ts → local time "YYYY-MM-DD HH:MM:SS.SSS". Return "" nếu invalid.
 function fmtTs(iso) {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")} ${d.toLocaleTimeString("en-GB", { hour12: false })}`;
+  const p2 = (n) => String(n).padStart(2, "0");
+  const p3 = (n) => String(n).padStart(3, "0");
+  return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${p3(d.getMilliseconds())}`;
 }
 // Time-only variant (dùng cho compact display).
 function fmtTime(iso) {
