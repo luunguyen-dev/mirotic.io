@@ -1158,6 +1158,11 @@ async function openDrawer(id) {
     const label = waitingRetry ? "Retry now (skip wait)" : "Retry";
     actions.push(`<a class="retry" onclick="doAction('${id}','retry','${j.signs.retry}')">↻ ${label}</a>`);
   }
+  // Approved (queued, chờ poller pick) → cho phép Cancel để đổi ý.
+  // Không show Cancel nếu waitingRetry (đã có Retry now button).
+  if (j.status === "approved" && !waitingRetry) {
+    actions.push(`<a onclick="doAction('${id}','cancel','${j.signs.cancel}')" class="danger">✕ Cancel</a>`);
+  }
   // Building/deploying: cho phép Cancel (mark failed) + Retry (reset plan + approved).
   if (isStuck) {
     actions.push(`<a onclick="doAction('${id}','cancel','${j.signs.cancel}')" class="danger">✕ Cancel</a>`);
