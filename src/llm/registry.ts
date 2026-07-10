@@ -33,10 +33,12 @@ export const MODELS: Record<string, ModelMeta> = {
 
 // Priority ordering theo user quyết định.
 // AGENTIC — complexity từ CEO rating (4-5⭐ = complex, 2-3⭐ = medium, 1⭐/null = simple).
+// QUAN TRỌNG: tier 1 và tier 2 phải KHÁC VENDOR để tránh cả 2 cùng bị session limit
+// khi Claude Max quota hoặc OpenAI rate limit hit. Fallback qua tier 2 vẫn dùng được.
 export const AGENTIC_PRIORITY: Record<ComplexityClass, string[]> = {
-  complex: ["claude-opus-4-8", "claude-sonnet-5", "gpt-5.5"],
-  medium:  ["claude-sonnet-5", "gpt-5.5", "claude-opus-4-8"],
-  simple:  ["gpt-5.5", "claude-sonnet-5"],
+  complex: ["claude-sonnet-5", "gpt-5.5", "claude-opus-4-8"],
+  medium:  ["claude-opus-4-8", "gpt-5.5", "claude-sonnet-5"],
+  simple:  ["gpt-5.5", "claude-sonnet-5", "claude-opus-4-8"],
 };
 
 // TEXT — role-based. Gemini có REST khả dụng ở mọi env (kể cả dashboard container không có claude/codex CLI).
