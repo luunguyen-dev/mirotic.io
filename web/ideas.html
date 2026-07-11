@@ -293,6 +293,11 @@
   .drawer .features-list { margin: 0; padding-left: 22px; list-style: none; }
   .drawer .features-list li { position: relative; padding: 5px 0; color: var(--text); font-size: 14px; line-height: 1.45; }
   .drawer .features-list li::before { content: "▸"; position: absolute; left: -16px; color: var(--tab-active-text); font-size: 13px; }
+  /* Diễn giải tiếng Việt của Prototyper — flow paragraph + note từng feature */
+  .drawer .explain-vi .flow-vi { color: var(--text-strong); font-size: 13.5px; line-height: 1.6; padding: 10px 12px; background: color-mix(in srgb, var(--tab-active-text) 6%, transparent); border-left: 3px solid var(--tab-active-text); border-radius: 0 6px 6px 0; margin-bottom: 10px; }
+  .drawer .explain-vi .feature-notes { margin: 0; padding-left: 0; list-style: none; }
+  .drawer .explain-vi .feature-notes li { display: flex; gap: 8px; padding: 4px 0; color: var(--text); font-size: 13px; line-height: 1.5; }
+  .drawer .explain-vi .feature-notes .idx { flex-shrink: 0; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%; background: color-mix(in srgb, var(--tab-active-text) 12%, transparent); color: var(--tab-active-text); font-size: 10.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 
   .drawer .critique { background: color-mix(in srgb, var(--star) 6%, var(--card)); border: 1px solid color-mix(in srgb, var(--star) 25%, var(--border)); border-left: 3px solid var(--star); border-radius: 8px; padding: 14px 16px; margin-bottom: 18px; }
   .drawer .critique .head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
@@ -1204,6 +1209,13 @@ async function openDrawer(id) {
   const featBlock = featEn.length ? `<div class="field"><label>Features</label>
     <ul class="features-list">${featEn.map((f, i) => `<li${featVi[i] ? ` title="${escapeHtml(featVi[i])}"` : ""}>${escapeHtml(f)}</li>`).join("")}</ul>
   </div>` : "";
+  // Diễn giải VI của Prototyper: user flow + note từng feature (số thứ tự khớp Features).
+  const flowVi = j.idea?.flow_vi || "";
+  const featNotes = j.idea?.feature_notes_vi || [];
+  const explainBlock = (flowVi || featNotes.length) ? `<div class="field explain-vi"><label>Diễn giải (VI)</label>
+    ${flowVi ? `<div class="flow-vi">${escapeHtml(flowVi)}</div>` : ""}
+    ${featNotes.length ? `<ul class="feature-notes">${featNotes.map((nt, i) => `<li><span class="idx">${i + 1}</span><span>${escapeHtml(nt)}</span></li>`).join("")}</ul>` : ""}
+  </div>` : "";
   const targetBlock = field("Target user", j.idea?.target_user_en, j.idea?.target_user_vi);
   const riskBlock = field("Risk", j.idea?.risk_en, j.idea?.risk_vi);
 
@@ -1294,6 +1306,7 @@ async function openDrawer(id) {
       <div class="drawer-pane" data-pane="idea">
         ${field("Why", whyEn, whyVi)}
         ${featBlock}
+        ${explainBlock}
         ${targetBlock}
         ${riskBlock}
       </div>
