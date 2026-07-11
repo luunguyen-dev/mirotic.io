@@ -588,6 +588,11 @@ const I18N = {
 let LANG = localStorage.getItem("mirotic.lang") || "vi";
 let THEME = localStorage.getItem("mirotic.theme") || "light";
 const t = (key) => I18N[LANG]?.[key] ?? key;
+// Content song ngữ theo toggle: [primary, alt] — primary = LANG hiện tại (fallback ngôn ngữ kia
+// khi thiếu), alt = ngôn ngữ còn lại (dùng làm tooltip; rỗng nếu primary đã phải fallback).
+const pickLang = (en, vi) => LANG === "vi"
+  ? [vi || en || "", vi ? (en || "") : ""]
+  : [en || vi || "", en ? (vi || "") : ""];
 function applyTheme(theme) {
   THEME = theme; localStorage.setItem("mirotic.theme", theme);
   document.documentElement.setAttribute("data-theme", theme);
@@ -601,6 +606,8 @@ function applyLang(lang) {
   if (btn) btn.textContent = lang.toUpperCase();
   document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.getAttribute("data-i18n")); });
   if (typeof load === "function") load();  // re-render với text mới
+  // Drawer đang mở → re-render để content đổi ngôn ngữ theo.
+  if (typeof currentDrawerJob !== "undefined" && currentDrawerJob && typeof openDrawer === "function") openDrawer(currentDrawerJob);
 }
 function toggleTheme() { applyTheme(THEME === "dark" ? "light" : "dark"); }
 function toggleLang() { applyLang(LANG === "vi" ? "en" : "vi"); }
@@ -900,9 +907,9 @@ function renderSpotlight(jobs) {
   el.style.display = "grid";
   const stage = stageOf(spot);
   const cfg = STAGES.find(s => s.key === stage) || STAGES[0];
-  const titleRaw = spot.idea?.title_en || spot.title || spot.id;
+  const [titleRaw] = pickLang(spot.idea?.title_en || spot.title || spot.id, spot.idea?.title_vi);
   const title = titleRaw.split(/\s+[—–-]\s+/)[0].trim() || titleRaw;
-  const desc = spot.idea?.pitch_en || spot.idea?.pitch || "";
+  const [desc] = pickLang(spot.idea?.pitch_en || spot.idea?.pitch, spot.idea?.pitch_vi);
   const stack = spot.idea?.type || spot.type;
   const cost = spot.total_cost_usd ? `$${spot.total_cost_usd.toFixed(2)}` : "";
   const signal = spot.total_turns || 0;
@@ -948,9 +955,9 @@ function paintHeatmap(data) {
 }
 
 function ideaCardHTML(j) {
-  const titleRaw = j.idea?.title_en || j.title || j.id;
+  const [titleRaw] = pickLang(j.idea?.title_en || j.title || j.id, j.idea?.title_vi);
   const title = titleRaw.split(/\s+[—–-]\s+/)[0].trim() || titleRaw;
-  const desc = j.idea?.pitch_en || j.idea?.pitch || "";
+  const [desc] = pickLang(j.idea?.pitch_en || j.idea?.pitch, j.idea?.pitch_vi);
   const stack = j.idea?.type || j.type;
   const stage = stageOf(j);
   const cost = j.total_cost_usd ? `$${j.total_cost_usd.toFixed(2)}` : "";
@@ -1054,12 +1061,11 @@ async function load() {
       const timeLabel = waitingRetry
         ? `${prefix}${Math.max(0, Math.floor((new Date(j.retry_after).getTime() - Date.now())/60000))}m`
         : `${prefix}${relTime(tickIso)}${suffix}`;
-      const titleRaw = j.idea?.title_en || j.title || j.slug || j.id;
+      const [titleRaw, titleAltRaw] = pickLang(j.idea?.title_en || j.title || j.slug || j.id, j.idea?.title_vi);
       // Strip em-dash tagline khỏi title: "Name — tagline" → "Name". Prototyper cũ ra format này.
-      const titleEn = titleRaw.split(/\s+[—–-]\s+/)[0].trim() || titleRaw;
-      const titleVi = (j.idea?.title_vi || "").split(/\s+[—–-]\s+/)[0].trim();
-      const pitchEn = j.idea?.pitch_en || j.idea?.pitch || "";
-      const pitchVi = j.idea?.pitch_vi || "";
+      const titleTxt = titleRaw.split(/\s+[—–-]\s+/)[0].trim() || titleRaw;
+      const titleAlt = titleAltRaw.split(/\s+[—–-]\s+/)[0].trim();
+      const [pitchTxt, pitchAlt] = pickLang(j.idea?.pitch_en || j.idea?.pitch, j.idea?.pitch_vi);
       const stars = j.ceo_rating ? "★".repeat(j.ceo_rating) + "☆".repeat(5 - j.ceo_rating) : "";
       const hours = j.idea?.demo_hours ? `${j.idea.demo_hours}h` : "";
       const topRow = stars || hours ? `<div class="top-row"><span class="rating"><span class="stars">${stars}</span></span><span class="hours">${escapeHtml(hours)}</span></div>` : "";
@@ -1070,16 +1076,16 @@ async function load() {
         j.total_turns ? `<span class="chip turns" title="conversation turns">${j.total_turns}</span>` : "",
       ].filter(Boolean).join("");
       const tagRow = tagBits ? `<div class="card-tags">${tagBits}</div>` : "";
-      // Tooltip = full title EN + VI + source (chi tiết ẩn khi hover).
+      // Tooltip = full title + ngôn ngữ còn lại + source (chi tiết ẩn khi hover).
       const titleTooltip = [
-        titleRaw !== titleEn ? titleRaw : "",
-        j.idea?.title_vi && j.idea?.title_vi !== titleRaw ? j.idea.title_vi : "",
+        titleRaw !== titleTxt ? titleRaw : "",
+        titleAlt && titleAlt !== titleTxt ? titleAlt : "",
         j.source,
       ].filter(Boolean).join(" · ");
-      const pitchBlock = pitchEn ? `<div class="pitch"${pitchVi && pitchVi !== pitchEn ? ` title="${escapeHtml(pitchVi)}"` : ""}>${escapeHtml(pitchEn)}</div>` : "";
+      const pitchBlock = pitchTxt ? `<div class="pitch"${pitchAlt && pitchAlt !== pitchTxt ? ` title="${escapeHtml(pitchAlt)}"` : ""}>${escapeHtml(pitchTxt)}</div>` : "";
       card.innerHTML = `
         ${topRow}
-        <div class="title"${titleTooltip ? ` title="${escapeHtml(titleTooltip)}"` : ""}>${j.type === "mobile-expo" ? "📱 " : ""}${escapeHtml(titleEn)}</div>
+        <div class="title"${titleTooltip ? ` title="${escapeHtml(titleTooltip)}"` : ""}>${j.type === "mobile-expo" ? "📱 " : ""}${escapeHtml(titleTxt)}</div>
         ${pitchBlock}
         ${tagRow}
         <div class="time ${isLive ? "live" : ""}"${(isLive || waitingRetry) ? ` data-tick="${escapeHtml(tickIso || "")}" data-prefix="${escapeHtml(prefix)}" data-suffix="${escapeHtml(suffix)}"` : ""}>${escapeHtml(timeLabel)}</div>`;
@@ -1188,44 +1194,54 @@ async function openDrawer(id) {
       : "";
     return `<div class="sub" style="margin-top:-8px">Builder: ${renderModelLabel({ name: "Auto" })}${resolved}</div>`;
   })();
-  const titleRawEn = j.idea?.title_en || j.idea?.title || j.id;
-  const titleRawVi = j.idea?.title_vi || j.idea?.title || "";
+  // Label tĩnh trong drawer theo ngôn ngữ toggle.
+  const LBL = LANG === "vi"
+    ? { features: "Tính năng", explain: "Diễn giải", target: "Người dùng mục tiêu", risk: "Rủi ro", why: "Vì sao", checklist: "Checklist", events: "Sự kiện", critique: "CEO phản biện", demoHours: "Giờ demo", source: "Nguồn" }
+    : { features: "Features", explain: "Walkthrough", target: "Target user", risk: "Risk", why: "Why", checklist: "Checklist", events: "Events", critique: "CEO Critique", demoHours: "Demo hours", source: "Source" };
+  // Content 1 ngôn ngữ theo toggle — [primary, alt]; alt vào tooltip.
+  const [titleRawP, titleRawA] = pickLang(j.idea?.title_en || j.idea?.title || j.id, j.idea?.title_vi || j.idea?.title);
   // Strip em-dash tagline: "Name — tagline" → "Name". Full title vào tooltip.
-  const titleEn = titleRawEn.split(/\s+[—–-]\s+/)[0].trim() || titleRawEn;
-  const titleVi = titleRawVi.split(/\s+[—–-]\s+/)[0].trim() || titleRawVi;
-  const pitchEn = j.idea?.pitch_en || j.idea?.pitch || "";
-  const pitchVi = j.idea?.pitch_vi || j.idea?.pitch || "";
-  const whyEn = j.idea?.why_en || j.idea?.why || "";
-  const whyVi = j.idea?.why_vi || j.idea?.why || "";
-  // Single-lang field (EN primary, VI as title tooltip khi hover).
-  const field = (label, en, vi) => en ? `<div class="field"><label>${label}</label>
-    <div class="body-txt"${vi && vi !== en ? ` title="${escapeHtml(vi)}"` : ""}>${escapeHtml(en)}</div>
+  const titleTxt = titleRawP.split(/\s+[—–-]\s+/)[0].trim() || titleRawP;
+  const titleAlt = titleRawA.split(/\s+[—–-]\s+/)[0].trim();
+  const [pitchTxt, pitchAlt] = pickLang(j.idea?.pitch_en || j.idea?.pitch, j.idea?.pitch_vi || j.idea?.pitch);
+  const [whyTxt, whyAlt] = pickLang(j.idea?.why_en || j.idea?.why, j.idea?.why_vi || j.idea?.why);
+  // Single-lang field (ngôn ngữ toggle primary, ngôn ngữ kia là tooltip khi hover).
+  const field = (label, en, vi) => {
+    const [txt, alt] = pickLang(en, vi);
+    return txt ? `<div class="field"><label>${label}</label>
+    <div class="body-txt"${alt && alt !== txt ? ` title="${escapeHtml(alt)}"` : ""}>${escapeHtml(txt)}</div>
   </div>` : "";
+  };
   const stars = j.ceo_rating ? "★".repeat(j.ceo_rating) + "☆".repeat(5 - j.ceo_rating) : "";
   let critique = {};
   try { critique = j.ceo_critique ? JSON.parse(j.ceo_critique) : {}; } catch {}
   const featEn = j.idea?.features_en || [];
   const featVi = j.idea?.features_vi || [];
-  const featBlock = featEn.length ? `<div class="field"><label>Features</label>
-    <ul class="features-list">${featEn.map((f, i) => `<li${featVi[i] ? ` title="${escapeHtml(featVi[i])}"` : ""}>${escapeHtml(f)}</li>`).join("")}</ul>
+  const featP = LANG === "vi" && featVi.length ? featVi : featEn;
+  const featA = featP === featVi ? featEn : featVi;
+  const featBlock = featP.length ? `<div class="field"><label>${LBL.features}</label>
+    <ul class="features-list">${featP.map((f, i) => `<li${featA[i] ? ` title="${escapeHtml(featA[i])}"` : ""}>${escapeHtml(f)}</li>`).join("")}</ul>
   </div>` : "";
-  // Diễn giải VI của Prototyper: user flow + note từng feature (số thứ tự khớp Features).
-  const flowVi = j.idea?.flow_vi || "";
-  const featNotes = j.idea?.feature_notes_vi || [];
-  const explainBlock = (flowVi || featNotes.length) ? `<div class="field explain-vi"><label>Diễn giải (VI)</label>
-    ${flowVi ? `<div class="flow-vi">${escapeHtml(flowVi)}</div>` : ""}
-    ${featNotes.length ? `<ul class="feature-notes">${featNotes.map((nt, i) => `<li><span class="idx">${i + 1}</span><span>${escapeHtml(nt)}</span></li>`).join("")}</ul>` : ""}
+  // Diễn giải của Prototyper: user flow + note từng feature (số thứ tự khớp Features).
+  const [flowTxt, flowAlt] = pickLang(j.idea?.flow_en, j.idea?.flow_vi);
+  const notesEn = j.idea?.feature_notes_en || [];
+  const notesVi = j.idea?.feature_notes_vi || [];
+  const featNotes = LANG === "vi" && notesVi.length ? notesVi : (notesEn.length ? notesEn : notesVi);
+  const notesAlt = featNotes === notesVi ? notesEn : notesVi;
+  const explainBlock = (flowTxt || featNotes.length) ? `<div class="field explain-vi"><label>${LBL.explain}</label>
+    ${flowTxt ? `<div class="flow-vi"${flowAlt && flowAlt !== flowTxt ? ` title="${escapeHtml(flowAlt)}"` : ""}>${escapeHtml(flowTxt)}</div>` : ""}
+    ${featNotes.length ? `<ul class="feature-notes">${featNotes.map((nt, i) => `<li${notesAlt[i] ? ` title="${escapeHtml(notesAlt[i])}"` : ""}><span class="idx">${i + 1}</span><span>${escapeHtml(nt)}</span></li>`).join("")}</ul>` : ""}
   </div>` : "";
-  const targetBlock = field("Target user", j.idea?.target_user_en, j.idea?.target_user_vi);
-  const riskBlock = field("Risk", j.idea?.risk_en, j.idea?.risk_vi);
+  const targetBlock = field(LBL.target, j.idea?.target_user_en, j.idea?.target_user_vi);
+  const riskBlock = field(LBL.risk, j.idea?.risk_en, j.idea?.risk_vi);
 
   const stepIcon = { pending: "○", in_progress: "◐", done: "✓", failed: "✗" };
-  const stepsBlock = j.plan?.steps?.length ? `<div class="field"><label>Checklist</label>
+  const stepsBlock = j.plan?.steps?.length ? `<div class="field"><label>${LBL.checklist}</label>
     <div class="checklist">${j.plan.steps.map(s => `<div class="step ${s.status}">
       <span class="icon">${stepIcon[s.status] || "○"}</span>
-      <div style="flex:1"><span>${escapeHtml(s.label_en)}</span><span class="lbl-vi">${escapeHtml(s.label_vi)}</span>${s.note ? `<span class="note">${escapeHtml(s.note)}</span>` : ""}</div>
+      <div style="flex:1"><span${pickLang(s.label_en, s.label_vi)[1] ? ` title="${escapeHtml(pickLang(s.label_en, s.label_vi)[1])}"` : ""}>${escapeHtml(pickLang(s.label_en, s.label_vi)[0])}</span>${s.note ? `<span class="note">${escapeHtml(s.note)}</span>` : ""}</div>
     </div>`).join("")}</div></div>`
-    : `<div class="field"><label>Events</label><div id="progress-fallback" style="font-family:'SF Mono',Menlo,monospace;font-size:11px;color:#666">loading…</div></div>`;
+    : `<div class="field"><label>${LBL.events}</label><div id="progress-fallback" style="font-family:'SF Mono',Menlo,monospace;font-size:11px;color:#666">loading…</div></div>`;
 
   const failedCount = (j.plan?.steps ?? []).filter(s => s.status === "failed").length;
   const hasError = !!j.error_detail;
@@ -1252,21 +1268,20 @@ async function openDrawer(id) {
       </ul>`;
     };
     return `<div class="critique">
-      <div class="head"><span>CEO Critique</span>${stars ? `<span class="stars">${stars}</span>` : ""}</div>
-      ${renderList(critique.en, "en")}
-      ${critique.vi ? renderList(critique.vi, "vi") : ""}
+      <div class="head"><span>${LBL.critique}</span>${stars ? `<span class="stars">${stars}</span>` : ""}</div>
+      ${renderList(pickLang(critique.en, critique.vi)[0], LANG)}
     </div>`;
   })();
 
   // Hero pitch — big italic quote ở đầu Overview để idea đọc lướt cũng nắm.
-  const heroBlock = pitchEn ? `<blockquote class="hero-pitch"${pitchVi && pitchVi !== pitchEn ? ` title="${escapeHtml(pitchVi)}"` : ""}>${escapeHtml(pitchEn)}</blockquote>` : "";
+  const heroBlock = pitchTxt ? `<blockquote class="hero-pitch"${pitchAlt && pitchAlt !== pitchTxt ? ` title="${escapeHtml(pitchAlt)}"` : ""}>${escapeHtml(pitchTxt)}</blockquote>` : "";
 
   // Meta list — key-value từng dòng có label.
   const srcFull = j.idea?.source || "";
   const metaRow = (k, v, title) => v ? `<div class="meta-row"${title ? ` title="${escapeHtml(title)}"` : ""}><span class="k">${k}</span><span class="v">${escapeHtml(v)}</span></div>` : "";
   const metaLine = (j.idea?.demo_hours || srcFull) ? `<div class="meta-list">
-    ${metaRow("Demo hours", j.idea?.demo_hours ? `${j.idea.demo_hours}h` : "")}
-    ${metaRow("Source", srcFull, srcFull.length > 60 ? srcFull : "")}
+    ${metaRow(LBL.demoHours, j.idea?.demo_hours ? `${j.idea.demo_hours}h` : "")}
+    ${metaRow(LBL.source, srcFull, srcFull.length > 60 ? srcFull : "")}
   </div>` : "";
 
   const errorBlock = j.error_detail ? `<div class="error-box">
@@ -1279,9 +1294,9 @@ async function openDrawer(id) {
 
   content.innerHTML = `
     <div class="drawer-header">
-      <h3${titleRawEn !== titleEn ? ` title="${escapeHtml(titleRawEn)}"` : ""}>${escapeHtml(titleEn)}</h3>
-      ${titleVi && titleVi !== titleEn ? `<div class="title-vi"${titleRawVi !== titleVi ? ` title="${escapeHtml(titleRawVi)}"` : ""}>${escapeHtml(titleVi)}</div>` : ""}
-      ${pitchEn ? `<div class="header-pitch"${pitchVi && pitchVi !== pitchEn ? ` title="${escapeHtml(pitchVi)}"` : ""}>${escapeHtml(pitchEn)}</div>` : ""}
+      <h3${titleRawP !== titleTxt ? ` title="${escapeHtml(titleRawP)}"` : ""}>${escapeHtml(titleTxt)}</h3>
+      ${titleAlt && titleAlt !== titleTxt ? `<div class="title-vi">${escapeHtml(titleAlt)}</div>` : ""}
+      ${pitchTxt ? `<div class="header-pitch"${pitchAlt && pitchAlt !== pitchTxt ? ` title="${escapeHtml(pitchAlt)}"` : ""}>${escapeHtml(pitchTxt)}</div>` : ""}
       <div class="meta-row">
         ${statusBadge}
         ${stars ? `<span class="stars">${stars}</span>` : ""}
@@ -1304,7 +1319,7 @@ async function openDrawer(id) {
         ${builderPicker}
       </div>
       <div class="drawer-pane" data-pane="idea">
-        ${field("Why", whyEn, whyVi)}
+        ${field(LBL.why, j.idea?.why_en || j.idea?.why, j.idea?.why_vi || j.idea?.why)}
         ${featBlock}
         ${explainBlock}
         ${targetBlock}

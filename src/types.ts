@@ -15,9 +15,9 @@ export type Idea = {
   demo_hours?: number;
   why_now?: string; why_now_vi?: string; why_now_en?: string;
   risk?: string; risk_vi?: string; risk_en?: string;
-  // Diễn giải tiếng Việt của Prototyper (hiện trong drawer dưới Features):
-  flow_vi?: string;             // đoạn văn kể user flow end-to-end
-  feature_notes_vi?: string[];  // song song features_en/vi — mỗi feature 1-2 câu vì sao cần/dùng lúc nào
+  // Diễn giải của Prototyper (hiện trong drawer dưới Features), song ngữ:
+  flow_vi?: string; flow_en?: string;                       // đoạn văn kể user flow end-to-end
+  feature_notes_vi?: string[]; feature_notes_en?: string[]; // song song features — mỗi feature 1-2 câu vì sao cần/dùng lúc nào
 };
 
 export type ScoredIdea = Idea & { score: number; url?: string };
