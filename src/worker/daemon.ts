@@ -40,7 +40,9 @@ type Reviewed = ScoredIdea & { ceo_rating?: number; ceo_critique?: string };
 export async function generateIdeaBatch(n = 10, topK = 3): Promise<{ jobIds: string[]; pooled: number }> {
   log(`☀️  Prototyper batch — gom ${n} candidates…`);
   db.appendSystemLog("prototyper", `Batch start — gom ${n} candidates`, "summary").catch(() => {});
-  const candidates: ScoredIdea[] = await batchCollect(n);
+  // Dedup context: title+pitch của jobs + pool gần đây → Prototyper không đề xuất lại.
+  const existing = await db.listRecentIdeaTitles(60).catch(() => []);
+  const candidates: ScoredIdea[] = await batchCollect(n, existing);
   log(`   gom được ${candidates.length} candidates (score ${candidates[0]?.score.toFixed(2) ?? "—"} → ${candidates.at(-1)?.score.toFixed(2) ?? "—"})`);
   db.appendSystemLog("prototyper", `Batch gom ${candidates.length} candidates (score ${candidates[0]?.score.toFixed(2) ?? "—"} → ${candidates.at(-1)?.score.toFixed(2) ?? "—"})`, "summary").catch(() => {});
 

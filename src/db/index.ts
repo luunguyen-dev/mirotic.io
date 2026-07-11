@@ -121,6 +121,8 @@ interface Backend {
   insertPoolItem(item: Omit<PoolItem, "created_at" | "promoted">): Promise<void>;
   listPool(limit: number): Promise<PoolItem[]>;
   markPoolPromoted(id: string): Promise<void>;
+  // Dedup context cho Prototyper: title + pitch của jobs + pool gần đây.
+  listRecentIdeaTitles(limit: number): Promise<Array<{ title: string; pitch: string }>>;
   // job_logs
   appendLog(jobId: string, line: string, level?: string): Promise<void>;
   getLogs(jobId: string, sinceId: number, limit: number): Promise<LogEntry[]>;
@@ -253,6 +255,12 @@ function pgBackend(url: string): Backend {
       return r as any;
     },
     async markPoolPromoted(id) { await sql`UPDATE idea_pool SET promoted = TRUE WHERE id = ${id}`; },
+    async listRecentIdeaTitles(limit) {
+      const jobs = await sql`SELECT idea_json::json->>'title' AS title, idea_json::json->>'pitch' AS pitch
+        FROM jobs ORDER BY created_at DESC LIMIT ${limit}`;
+      const pool = await sql`SELECT title, pitch FROM idea_pool ORDER BY created_at DESC LIMIT ${limit}`;
+      return [...jobs, ...pool].filter((r: any) => r.title).map((r: any) => ({ title: r.title, pitch: r.pitch ?? "" }));
+    },
     async appendLog(jobId, line, level = "info") {
       await sql`INSERT INTO job_logs (job_id, ts, level, line) VALUES (${jobId}, ${now()}, ${level}, ${line})`;
     },
@@ -428,6 +436,13 @@ function sqliteBackend(): Backend {
       return db.query(`SELECT * FROM idea_pool WHERE promoted = 0 ORDER BY score DESC LIMIT ?`).all(limit) as any;
     },
     async markPoolPromoted(id) { db.run(`UPDATE idea_pool SET promoted = 1 WHERE id = ?`, [id]); },
+    async listRecentIdeaTitles(limit) {
+      const jobs = db.query(`SELECT json_extract(idea_json, '$.title') AS title, json_extract(idea_json, '$.pitch') AS pitch
+        FROM jobs ORDER BY created_at DESC LIMIT ?`).all(limit) as any[];
+      let pool: any[] = [];
+      try { pool = db.query(`SELECT title, pitch FROM idea_pool ORDER BY created_at DESC LIMIT ?`).all(limit) as any[]; } catch {}
+      return [...jobs, ...pool].filter((r) => r.title).map((r) => ({ title: r.title, pitch: r.pitch ?? "" }));
+    },
     async appendLog(jobId, line, level = "info") {
       db.run(`CREATE TABLE IF NOT EXISTS job_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT, ts TEXT, level TEXT, line TEXT)`);
       db.run(`INSERT INTO job_logs (job_id, ts, level, line) VALUES (?,?,?,?)`, [jobId, now(), level, line]);
@@ -499,6 +514,7 @@ export const claimNextDeployRequested = () => backend.claimNextDeployRequested()
 export const insertPoolItem = (item: Omit<PoolItem, "created_at" | "promoted">) => backend.insertPoolItem(item);
 export const listPool = (limit = 50) => backend.listPool(limit);
 export const markPoolPromoted = (id: string) => backend.markPoolPromoted(id);
+export const listRecentIdeaTitles = (limit = 60) => backend.listRecentIdeaTitles(limit);
 export const appendLog = (jobId: string, line: string, level = "info") => backend.appendLog(jobId, line, level);
 export const getLogs = (jobId: string, sinceId = 0, limit = 500) => backend.getLogs(jobId, sinceId, limit);
 export const getEvents = (sinceId = 0, limit = 100) => backend.getEvents(sinceId, limit);

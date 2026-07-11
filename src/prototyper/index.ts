@@ -199,7 +199,10 @@ const SEED: Idea = {
  * Trả về N ý tưởng sắp xếp theo score desc.
  * Caller (mirotic daemon) tự quyết: top-K → jobs(proposed), còn lại → idea_pool.
  */
-export async function batchCollect(n = 10): Promise<ScoredIdea[]> {
+// Normalize title để so trùng: lowercase, bỏ ký tự đặc biệt.
+const normTitle = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+export async function batchCollect(n = 10, existing: Array<{ title: string; pitch: string }> = []): Promise<ScoredIdea[]> {
   const [hn, gh, ph, bl] = await Promise.all([fromHN(), fromGitHubTrending(), fromProductHunt(), fromBacklog()]);
   log(`🔎 Signals: HN ${hn.length} · GitHub ${gh.length} · PH ${ph.length} · backlog ${bl.length}`);
   const all = [...hn, ...gh, ...ph, ...bl];
@@ -223,7 +226,11 @@ Niche founder quan tâm: ${CFG.niches.join(", ")}
 
 Tín hiệu xu hướng hôm nay (CHỈ LÀ INSPIRATION — không copy trực tiếp):
 ${inspirations.map((c, i) => `${i + 1}. [${c.source}] ${c.title} — ${c.summary}`).join("\n")}
-
+${existing.length ? `
+⛔ IDEA ĐÃ CÓ TRONG PIPELINE — TUYỆT ĐỐI KHÔNG đề xuất lại, KHÔNG đề xuất biến thể gần (đổi tên nhưng cùng mechanic/cùng pain):
+${existing.slice(0, 60).map((e) => `- ${e.title}: ${e.pitch.slice(0, 80)}`).join("\n")}
+Nếu 1 idea của bạn giải cùng pain với item trên → phải có mechanic KHÁC HẲN, nếu không thì bỏ, nghĩ idea khác.
+` : ""}
 Nhiệm vụ: sinh ra ${n} idea GỐC. Có thể:
 - Lấy 1 signal, reframe / kết hợp / đối lập / thu hẹp scope xuống 1 ngách
 - Nhìn signal, thấy "pain thực" đằng sau, đề xuất tool nhỏ giải cứu
@@ -233,7 +240,8 @@ Nhiệm vụ: sinh ra ${n} idea GỐC. Có thể:
 TIÊU CHÍ CHẤT LƯỢNG (quan trọng — tránh idea "chán"):
 - **Cụ thể**: title_en/title_vi chỉ là tên product ngắn gọn, KHÔNG kèm em-dash + tagline. Tagline đã có ở pitch_en riêng. Ví dụ: title="Standup" ✓, KHÔNG "Standup — 5-min voice memo" ❌ (redundant với pitch).
 - **Có góc riêng**: nêu rõ 1 điểm khác biệt với các tool cùng lĩnh vực đã có
-- **Buildable 1 ngày**: 2-24h, KHÔNG cần API/data khó xin, KHÔNG scope > 1 người 1 ngày
+- **Features = hành vi demo được**: mỗi feature là 1 câu "user làm X → thấy Y trên màn hình". KHÔNG marketing claim ("theo dõi thông minh" ❌), KHÔNG khả năng kỹ thuật chưa chứng minh ("dùng mic bắt chuyển động qua nệm" ❌). Ai đọc features phải hình dung được đúng màn hình demo.
+- **Buildable 1 ngày**: 2-24h, KHÔNG cần API/data khó xin, KHÔNG scope > 1 người 1 ngày, KHÔNG dựa vào ML/CV/sensor processing chưa có sẵn
 - **Target user cụ thể**: "developers debugging..." ❌ vague; "SREs chăm 3 microservices Go, không muốn attach debugger" ✓; "mẹ 2 con lập menu tuần Chủ Nhật" ✓
 - **PMF signal**: user có động lực trả tiền / khoe cho bạn / dùng weekly?
 - **Cân bằng phạm vi (BẮT BUỘC)**: ${n} idea PHẢI chia rõ hai nhóm — dù prompt/signals nghiêng về tech, VẪN phải giữ tỷ lệ:
@@ -286,8 +294,16 @@ Trả JSON array ${n} items, không markdown, không giải thích:
             demo_hours: typeof it.demo_hours === "number" ? Math.max(1, Math.min(24, Math.round(it.demo_hours))) : undefined,
           };
         });
-        log(`   ✓ Prototyper synthesize ${synthesized.length} ideas (model: ${CFG.prototyperModel})`);
-        return synthesized;
+        // Post-filter: drop idea trùng title với pipeline hiện có hoặc trùng nhau trong batch.
+        const seen = new Set(existing.map((e) => normTitle(e.title)));
+        const deduped = synthesized.filter((s) => {
+          const k = normTitle(s.title);
+          if (seen.has(k)) { log(`   ✗ drop duplicate "${s.title}"`); return false; }
+          seen.add(k);
+          return true;
+        });
+        log(`   ✓ Prototyper synthesize ${deduped.length} ideas (model: ${CFG.prototyperModel}${deduped.length < synthesized.length ? `, dropped ${synthesized.length - deduped.length} dup` : ""})`);
+        return deduped;
       }
       log(`   (LLM output không parse được JSON array → fallback heuristic)`);
     } catch (e: any) {

@@ -91,13 +91,19 @@ Rubric rating 1-5 (thang sao):
 - 5 = high-value, PMF signal rõ, scope tight, low risk, khác biệt rõ với existing
 - 4 = tốt, đáng build 1 ngày, vài caveats nhỏ
 - 3 = trung bình, có value nhưng thị trường đông / weak differentiation
-- 2 = yếu, low pull, thị trường không rõ
+- 2 = yếu, low pull, thị trường không rõ, HOẶC feature core dựa vào kỹ thuật chưa chứng minh được trong 1 ngày (CV/ML/sensor)
 - 1 = không nên build, misaligned với niche hoặc chỉ là stunt
 
-Chấm PHẢN BIỆN: nêu weakness thẳng, đừng nịnh. Nếu scope > 1 ngày → giảm rating.
+CÁCH CHẤM (bắt buộc, theo thứ tự):
+1. **Named competitor**: kể tên ≥1 tool/app cụ thể đang giải pain này. Idea khác gì? Nếu bạn không kể được điểm khác biệt trong 1 câu → rating ≤ 3.
+2. **Feature audit**: feature nào KHÔNG build được trong demo_hours? Feature nào là marketing claim không demo được? Có → trừ điểm và nói rõ feature nào.
+3. **Kill question**: 1 câu hỏi mà nếu trả lời "không" thì idea chết (vd: "user có mở app lần thứ 2 không?").
+4. **Verdict**: kết bằng "BUILD" hoặc "PASS" + 1 câu lý do.
+
+3 KHÔNG phải điểm mặc định. Phân hoá thật: idea tốt hơn hẳn → 4-5, idea có lỗ hổng chết người → 1-2. Đừng nịnh, đừng vote 3 cả loạt cho an toàn.
 
 Trả JSON DUY NHẤT, không markdown, không giải thích ngoài:
-{"rating": <1..5>, "critique_en": "3-4 câu strengths + weaknesses + verdict", "critique_vi": "3-4 câu tiếng Việt"}`;
+{"rating": <1..5>, "critique_en": "4-5 câu theo cấu trúc: competitor + feature audit + kill question + verdict BUILD/PASS", "critique_vi": "4-5 câu tiếng Việt cùng cấu trúc"}`;
   try {
     const { output: raw } = await callTextWithFallback("ceo", prompt, { timeoutMs: 60_000 });
     const m = raw.match(/\{[\s\S]*\}/);
