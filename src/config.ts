@@ -18,6 +18,9 @@ export const CONFIG = {
   // Auto-approve: job có CEO rating >= threshold sẽ tự transition proposed → approved.
   // 0 = disabled. 3 = auto-approve idea >= 3 sao. Cẩn thận: skip user oversight.
   autoApproveMinRating: Number(env("AUTO_APPROVE_MIN_RATING", "0")),
+  // Daily auto-build: mỗi ngày (sau batch sáng) tự approve đúng 1 card proposed có rating
+  // cao nhất → poller build. Floor = autoApproveMinRating (0 = không sàn, chọn card top).
+  dailyAutoBuild: bool("DAILY_AUTO_BUILD", false),
   githubOwner: env("GITHUB_OWNER", "you"),
   awsHost: env("AWS_HOST", "your-ec2-host"),
   dataDir: DATA_DIR,

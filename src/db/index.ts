@@ -116,6 +116,7 @@ interface Backend {
   countStartedRecent(hours: number): Promise<number>;          // rolling window (24h default)
   oldestStartedInWindow(hours: number): Promise<string | null>; // ISO ts của build cũ nhất trong window (để compute next slot)
   claimNextApproved(): Promise<Job | null>;        // approved → building (+started_at)
+  claimBestProposed(minRating: number): Promise<Job | null>; // proposed rating cao nhất → approved (daily auto-build)
   claimNextDeployRequested(): Promise<Job | null>; // deploy-requested → deploying
   // idea_pool
   insertPoolItem(item: Omit<PoolItem, "created_at" | "promoted">): Promise<void>;
@@ -234,6 +235,19 @@ function pgBackend(url: string): Backend {
           WHERE status = 'approved'
             AND (retry_after IS NULL OR retry_after <= ${now()})
           ORDER BY created_at LIMIT 1
+          FOR UPDATE SKIP LOCKED
+        )
+        RETURNING *`;
+      return r.length ? parse(r[0]) : null;
+    },
+    async claimBestProposed(minRating) {
+      const r = await sql`UPDATE jobs SET status = 'approved'
+        WHERE id = (
+          SELECT id FROM jobs
+          WHERE status = 'proposed'
+            AND ceo_rating IS NOT NULL
+            AND ceo_rating >= ${minRating}
+          ORDER BY ceo_rating DESC, created_at ASC LIMIT 1
           FOR UPDATE SKIP LOCKED
         )
         RETURNING *`;
@@ -418,6 +432,15 @@ function sqliteBackend(): Backend {
       r.status = "building"; r.started_at = t;
       return parse(r);
     },
+    async claimBestProposed(minRating) {
+      const r = db.query(`SELECT * FROM jobs
+        WHERE status = 'proposed' AND ceo_rating IS NOT NULL AND ceo_rating >= ?
+        ORDER BY ceo_rating DESC, created_at ASC LIMIT 1`).get(minRating) as any;
+      if (!r) return null;
+      db.run(`UPDATE jobs SET status = 'approved' WHERE id = ?`, [r.id]);
+      r.status = "approved";
+      return parse(r);
+    },
     async claimNextDeployRequested() {
       const r = db.query(`SELECT * FROM jobs WHERE status = 'deploy-requested' ORDER BY created_at LIMIT 1`).get() as any;
       if (!r) return null;
@@ -510,6 +533,7 @@ export const countStartedToday = () => backend.countStartedToday();
 export const countStartedRecent = (hours: number) => backend.countStartedRecent(hours);
 export const oldestStartedInWindow = (hours: number) => backend.oldestStartedInWindow(hours);
 export const claimNextApproved = () => backend.claimNextApproved();
+export const claimBestProposed = (minRating = 0) => backend.claimBestProposed(minRating);
 export const claimNextDeployRequested = () => backend.claimNextDeployRequested();
 export const insertPoolItem = (item: Omit<PoolItem, "created_at" | "promoted">) => backend.insertPoolItem(item);
 export const listPool = (limit = 50) => backend.listPool(limit);

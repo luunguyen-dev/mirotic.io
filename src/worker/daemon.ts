@@ -92,7 +92,23 @@ export async function generateIdeaBatch(n = 10, topK = 3): Promise<{ jobIds: str
   }
   log(`   → pool: ${pooled} candidates`);
   db.appendSystemLog("prototyper", `Batch done: ${topK} jobs + ${pooled} pool`, "summary").catch(() => {});
+
+  // Daily auto-build: sau khi batch có rating, tự approve đúng 1 card tốt nhất (nếu bật).
+  if (CONFIG.dailyAutoBuild) await autoPromoteBest();
   return { jobIds, pooled };
+}
+
+// Mỗi ngày: chọn đúng 1 card status=proposed có CEO rating cao nhất (floor = autoApproveMinRating)
+// → approved. Poller sẽ nhận build ở cycle kế. Không làm gì nếu không còn card đủ điều kiện.
+export async function autoPromoteBest(): Promise<string | null> {
+  const job = await db.claimBestProposed(CONFIG.autoApproveMinRating);
+  if (!job) {
+    log(`🤖 Daily auto-build: không có card proposed đủ điều kiện (floor ${CONFIG.autoApproveMinRating}⭐)`);
+    return null;
+  }
+  log(`🤖 Daily auto-build: approved "${job.idea.title}" (${job.ceo_rating ?? "?"}⭐) [${job.id}]`);
+  db.appendSystemLog("auto-approve", `Daily best → approved: ${job.id} "${job.idea.title}" (${job.ceo_rating ?? "?"}⭐)`, "summary").catch(() => {});
+  return job.id;
 }
 
 // Compute ms từ now → HH:MM local kế tiếp (roll qua ngày mai nếu đã qua).
@@ -114,7 +130,7 @@ export async function runDaemon(): Promise<void> {
   sched();
   await pollOnce();
   setInterval(pollOnce, CONFIG.pollIntervalMin * 60_000);
-  log(`🟢 Daemon: poller mỗi ${CONFIG.pollIntervalMin} phút · batch ý tưởng lúc ${CONFIG.morningAt}`);
+  log(`🟢 Daemon: poller mỗi ${CONFIG.pollIntervalMin} phút · batch ý tưởng lúc ${CONFIG.morningAt} · daily-auto-build: ${CONFIG.dailyAutoBuild ? `ON (floor ${CONFIG.autoApproveMinRating}⭐)` : "off"}`);
 }
 
 // Worker Mac = batch + poller, KHÔNG serve dashboard (dashboard ở EC2).
@@ -124,5 +140,5 @@ export async function runWorker(): Promise<void> {
   sched();
   await pollOnce();
   setInterval(pollOnce, CONFIG.pollIntervalMin * 60_000);
-  log(`🛠  Worker: poller mỗi ${CONFIG.pollIntervalMin}' · batch lúc ${CONFIG.morningAt} · KHÔNG serve dashboard`);
+  log(`🛠  Worker: poller mỗi ${CONFIG.pollIntervalMin}' · batch lúc ${CONFIG.morningAt} · daily-auto-build: ${CONFIG.dailyAutoBuild ? `ON (floor ${CONFIG.autoApproveMinRating}⭐)` : "off"} · KHÔNG serve dashboard`);
 }
