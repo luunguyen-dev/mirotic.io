@@ -1,6 +1,10 @@
 .env
 .env.bak*
 *.pem
+*.p8
+mirotic-*.json
+!package.json
+!package-lock.json
 data/
 node_modules/
 aws/DATABASE_URL.txt

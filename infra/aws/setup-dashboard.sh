@@ -16,7 +16,7 @@ echo "→ [1/4] Build .env.dashboard (chỉ vars dashboard cần)"
 ENV_FILE=/tmp/.env.dashboard.$$
 {
   echo "PORT=4321"
-  echo "BASE_URL=https://mirotic.luunguyen.dev"
+  echo "BASE_URL=https://mirotic.io"
   echo "DATABASE_URL=postgresql://$(grep ^DB_USER= "$ROOT/.env" | cut -d= -f2-):$(grep ^DB_PASS= "$ROOT/.env" | cut -d= -f2- | sed 's/@/%40/g')@localhost:5432/$(grep ^DB_NAME= "$ROOT/.env" | cut -d= -f2-)"
   echo "HMAC_SECRET=$(grep ^HMAC_SECRET= "$ROOT/.env" | cut -d= -f2-)"
   echo "USE_REAL_CLAUDE=false"

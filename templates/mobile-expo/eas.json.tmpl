@@ -6,23 +6,26 @@
   "build": {
     "preview": {
       "distribution": "internal",
-      "android": {
-        "buildType": "apk"
-      },
-      "ios": {
-        "simulator": true
-      }
+      "android": { "buildType": "apk" },
+      "ios": { "simulator": true }
     },
     "production": {
-      "android": {
-        "buildType": "apk"
-      },
-      "ios": {
-        "autoIncrement": true
-      }
+      "channel": "production",
+      "android": { "buildType": "app-bundle", "autoIncrement": true },
+      "ios": { "autoIncrement": true }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "{ANDROID_SERVICE_ACCOUNT_PATH}",
+        "track": "internal",
+        "releaseStatus": "draft"
+      },
+      "ios": {
+        "appleId": "{APPLE_ID}",
+        "ascAppId": "auto"
+      }
+    }
   }
 }
