@@ -970,17 +970,15 @@ function ideaCardHTML(j) {
   </div>`;
 }
 
-// Local date key (UTC+7) — dùng cho filter Today.
+// Ngày địa phương UTC+7 — dùng cho filter Today.
+// Cộng thẳng 7h vào mốc UTC rồi đọc ngày UTC → luôn đúng bất kể timezone của browser.
+// (Công thức cũ dùng getTimezoneOffset() chỉ đúng khi browser ở UTC; với browser ICT nó triệt tiêu +7h → trả về ngày UTC, lệch 1 ngày quanh mốc nửa đêm UTC.)
 function todayLocalKey() {
-  const d = new Date();
-  d.setMinutes(d.getMinutes() + d.getTimezoneOffset() + 7 * 60);
-  return d.toISOString().slice(0, 10);
+  return new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
 }
 function createdLocalKey(iso) {
   if (!iso) return "";
-  const d = new Date(iso);
-  d.setMinutes(d.getMinutes() + d.getTimezoneOffset() + 7 * 60);
-  return d.toISOString().slice(0, 10);
+  return new Date(new Date(iso).getTime() + 7 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
 function renderTodayGrid(jobs) {

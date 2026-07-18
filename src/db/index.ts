@@ -40,7 +40,10 @@ const SCHEMA = `CREATE TABLE IF NOT EXISTS jobs (
   reject_reason text, started_at text )`;
 
 const now = () => new Date().toISOString();
-const today = () => now().slice(0, 10);
+const today = () => now().slice(0, 10);                                   // UTC date — cho so sánh với started_at (UTC ISO)
+// Ngày địa phương UTC+7 — cho prefix ID job/pool, để khớp bucket "hôm nay" của dashboard client
+// (client cũng dùng UTC+7). Hardcode +7 để nhất quán dù insert chạy trên host UTC (EC2) hay ICT (Mac).
+const todayLocal = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
 
 function parse(r: any): Job {
   return {
@@ -142,7 +145,7 @@ interface Backend {
   close(): Promise<void>;
 }
 
-const jobId = (idea: Idea) => `${today()}-${idea.slug}`;
+const jobId = (idea: Idea) => `${todayLocal()}-${idea.slug}`;
 
 // ----------------------------- Postgres -----------------------------
 function pgBackend(url: string): Backend {

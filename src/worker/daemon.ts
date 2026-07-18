@@ -19,7 +19,8 @@ import { log } from "../util/logger";
 import { startServer } from "../api/server";
 import type { Idea, ScoredIdea } from "../types";
 
-const today = () => new Date().toISOString().slice(0, 10);
+// Ngày địa phương UTC+7 — prefix cho pool ID, khớp bucket "hôm nay" của dashboard (client cũng UTC+7).
+const today = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
 
 // Single-idea path — giữ cho mode 'demo' + backward compat.
 export async function generateIdea(): Promise<string> {
@@ -43,6 +44,14 @@ export async function generateIdeaBatch(n = 10, topK = 3): Promise<{ jobIds: str
   // Dedup context: title+pitch của jobs + pool gần đây → Prototyper không đề xuất lại.
   const existing = await db.listRecentIdeaTitles(60).catch(() => []);
   const candidates: ScoredIdea[] = await batchCollect(n, existing);
+  // Synthesis fail → batchCollect trả rỗng (không phun tiêu đề thô làm idea rác). Bỏ qua batch,
+  // nhưng VẪN chạy auto-build để card tốt tồn đọng được thực thi. Mai batch retry.
+  if (!candidates.length) {
+    log(`   ⚠️  Batch rỗng (Prototyper synthesis fail) — không thêm idea mới hôm nay`);
+    db.appendSystemLog("prototyper", "Batch rỗng — Prototyper synthesis fail (không tạo idea rác). Mai retry.", "warn").catch(() => {});
+    if (CONFIG.dailyAutoBuild) await autoPromoteBest();
+    return { jobIds: [], pooled: 0 };
+  }
   log(`   gom được ${candidates.length} candidates (score ${candidates[0]?.score.toFixed(2) ?? "—"} → ${candidates.at(-1)?.score.toFixed(2) ?? "—"})`);
   db.appendSystemLog("prototyper", `Batch gom ${candidates.length} candidates (score ${candidates[0]?.score.toFixed(2) ?? "—"} → ${candidates.at(-1)?.score.toFixed(2) ?? "—"})`, "summary").catch(() => {});
 
@@ -133,12 +142,13 @@ export async function runDaemon(): Promise<void> {
   log(`🟢 Daemon: poller mỗi ${CONFIG.pollIntervalMin} phút · batch ý tưởng lúc ${CONFIG.morningAt} · daily-auto-build: ${CONFIG.dailyAutoBuild ? `ON (floor ${CONFIG.autoApproveMinRating}⭐)` : "off"}`);
 }
 
-// Worker Mac = batch + poller, KHÔNG serve dashboard (dashboard ở EC2).
+// Worker Mac = CHỈ poller (build/deploy queue), KHÔNG serve dashboard (dashboard ở EC2).
+// Batch ý tưởng KHÔNG còn chạy bằng setTimeout in-process (không tin cậy khi Mac ngủ —
+// timer chỉ fire khi máy thức, trễ hàng giờ). Thay bằng launchd job riêng `io.mirotic.batch`
+// với StartCalendarInterval (chạy đúng giờ, và chạy bù ngay khi máy thức nếu lỡ giờ vì ngủ).
 export async function runWorker(): Promise<void> {
   await db.initDb();
-  const sched = () => setTimeout(async () => { await generateIdeaBatch(); sched(); }, msUntil(CONFIG.morningAt));
-  sched();
   await pollOnce();
   setInterval(pollOnce, CONFIG.pollIntervalMin * 60_000);
-  log(`🛠  Worker: poller mỗi ${CONFIG.pollIntervalMin}' · batch lúc ${CONFIG.morningAt} · daily-auto-build: ${CONFIG.dailyAutoBuild ? `ON (floor ${CONFIG.autoApproveMinRating}⭐)` : "off"} · KHÔNG serve dashboard`);
+  log(`🛠  Worker: poller mỗi ${CONFIG.pollIntervalMin}' · batch qua launchd io.mirotic.batch lúc ${CONFIG.morningAt} · daily-auto-build: ${CONFIG.dailyAutoBuild ? `ON (floor ${CONFIG.autoApproveMinRating}⭐)` : "off"} · KHÔNG serve dashboard`);
 }

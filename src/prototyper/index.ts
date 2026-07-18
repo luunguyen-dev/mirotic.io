@@ -317,18 +317,11 @@ Trả JSON array ${n} items, không markdown, không giải thích:
     }
   }
 
-  // Fallback heuristic: rank raw candidates by niche, dùng trực tiếp làm idea (chán như cũ, nhưng vẫn có gì đó).
-  return inspirations.slice(0, n).map((c) => {
-    const rawTitle = c.title.split("/").pop() ?? c.title;
-    return {
-      title: rawTitle, slug: slugify(rawTitle), type: inferType(c),
-      pitch: c.summary, why: `Đang trending trên ${c.source}; khớp ngách của bạn.`,
-      source: c.source, url: c.url, score: 0.3,
-      title_en: rawTitle, title_vi: rawTitle,
-      pitch_en: c.summary, pitch_vi: c.summary,
-      why_en: `Trending on ${c.source}.`, why_vi: `Đang trending trên ${c.source}.`,
-    };
-  });
+  // Synthesis fail (LLM đã thử 4 model trong callLLMForPrototyper mà vẫn lỗi/không parse được).
+  // KHÔNG fallback phun tiêu đề HN/GitHub thô làm "idea" — đó chỉ tạo card rác 1-2⭐ làm bẩn board.
+  // Trả rỗng: hôm nay không thêm idea mới, batch mai retry. Board sạch hơn "có gì đó nhưng rác".
+  log(`   ⚠️  Prototyper synthesis fail — bỏ qua batch hôm nay (KHÔNG phun tiêu đề thô làm idea)`);
+  return [];
 }
 
 /** Thu thập từ mọi nguồn, lọc theo ngách, chọn 1 ý tưởng. */

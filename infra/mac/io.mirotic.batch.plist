@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- launchd plist: mirotic MORNING BATCH (one-shot mỗi ngày). Install: ./infra/mac/install-launchd.sh
+     Tách khỏi io.mirotic (poller thường trú) vì batch cần chạy ĐÚNG GIỜ kể cả khi Mac vừa ngủ dậy.
+     StartCalendarInterval: launchd chạy đúng HH:MM; nếu máy ngủ qua mốc đó → chạy BÙ ngay khi thức.
+     Giờ/phút được install-launchd.sh bơm từ MORNING_AT trong .env. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>io.mirotic.batch</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/bun</string>
+    <string>run</string>
+    <string>src/index.ts</string>
+    <string>batch</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__WORKDIR__</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- PATH thừa các bin Mac cần: claude/codex CLI, gh, git -->
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>__HOME__</string>
+  </dict>
+
+  <!-- Chạy đúng HH:MM mỗi ngày. KHÔNG RunAtLoad (chỉ chạy theo lịch, không chạy lúc cài). -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>__HOUR__</integer>
+    <key>Minute</key>
+    <integer>__MINUTE__</integer>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/mirotic/stdout.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/mirotic/stderr.log</string>
+</dict>
+</plist>
