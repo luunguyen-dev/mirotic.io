@@ -23,6 +23,9 @@ export const CONFIG = {
   dailyAutoBuild: bool("DAILY_AUTO_BUILD", false),
   githubOwner: env("GITHUB_OWNER", "you"),
   awsHost: env("AWS_HOST", "your-ec2-host"),
+  // Domain gốc cho subdomain của mọi project deploy: <slug>.<deployDomain>. Wildcard *.<deployDomain>
+  // phải trỏ về AWS_HOST. Đổi mặc định luunguyen.dev → mirotic.io.
+  deployDomain: env("DEPLOY_DOMAIN", "mirotic.io"),
   dataDir: DATA_DIR,
   outbox: `${DATA_DIR}/outbox`,
   builds: `${DATA_DIR}/builds`,

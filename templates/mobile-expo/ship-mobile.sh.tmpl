@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # ship-mobile.sh — deploy Expo project:
-#   1) Build APK (preview) → scp to <slug>.luunguyen.dev/app.apk (sideload)
+#   1) Build APK (preview) → scp to <slug>.<DEPLOY_DOMAIN>/app.apk (sideload)
 #   2) Build AAB (production) → eas submit → Play Console Internal Testing
 #
 # ENV yêu cầu (Mac worker set sẵn):
 #   SSH_KEY, SSH_USER, AWS_HOST           — cho APK subdomain hosting
 #   ANDROID_SERVICE_ACCOUNT_PATH          — cho EAS Submit Play Store
 #   EAS_ACCOUNT                           — dùng eas login sẵn
+#   DEPLOY_DOMAIN                          — domain gốc (default mirotic.io)
 set -euo pipefail
 
 SLUG="$(basename $(pwd) | sed 's/^mirotic-//')"
-BASE_URL="https://${SLUG}.luunguyen.dev"
+DOMAIN="${SLUG}.${DEPLOY_DOMAIN:-mirotic.io}"
+BASE_URL="https://${DOMAIN}"
 
 echo "🚀 ship-mobile: ${SLUG}"
 echo ""
@@ -38,7 +40,7 @@ BLOCK="/etc/caddy/vhosts/${SLUG}.caddy"
 if [[ ! -f "\$BLOCK" ]]; then
   sudo mkdir -p /etc/caddy/vhosts
   sudo tee "\$BLOCK" > /dev/null <<EOF
-${SLUG}.luunguyen.dev {
+${DOMAIN} {
   root * /var/www/mirotic-apps/${SLUG}
   @apk path /app.apk /app.aab
   file_server @apk

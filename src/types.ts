@@ -47,12 +47,12 @@ export type Result = {
   branch: string;
   localUrl: string;      // web: http://localhost:3xxx (chỉ Mac worker truy cập)
   lanUrl?: string;       // web: http://<mac-LAN-IP>:3xxx (phone/máy khác cùng WiFi truy cập)
-  deployedUrl?: string;  // web: https://<slug>.luunguyen.dev
+  deployedUrl?: string;  // web: https://<slug>.mirotic.io
   publicPort?: number;
   error?: string;
   // Mobile-specific fields (mobile-expo)
   expoUrl?: string;      // exp://u.expo.dev/... tunnel URL — user scan QR bằng Expo Go (nếu manual start tunnel)
   expoQr?: string;       // base64 data URL của QR code image (khi expoUrl có)
   cliHint?: string;      // command user chạy tay để start tunnel + get QR (mobile)
-  apkUrl?: string;       // https://<slug>.luunguyen.dev/app.apk (deployed prod)
+  apkUrl?: string;       // https://<slug>.mirotic.io/app.apk (deployed prod)
 };

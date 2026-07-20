@@ -79,8 +79,8 @@ export async function promoteJobToProject(jobId: string): Promise<{ projectId: s
     description: idea.pitch_en ?? idea.pitch,
     status: "active",
     repo_url: job.result?.repoUrl ?? null,
-    prod_domain: `${slug}.luunguyen.dev`,
-    staging_domain: `staging-${slug}.luunguyen.dev`,
+    prod_domain: `${slug}.${CONFIG.deployDomain}`,
+    staging_domain: `staging-${slug}.${CONFIG.deployDomain}`,
   });
   return { projectId, issues: 0 };  // worker sẽ seed sau
 }

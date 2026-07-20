@@ -44,4 +44,4 @@ EOF
 echo ""
 echo "✓ Setup xong. Từ giờ mỗi lần deploy mobile app:"
 echo "  - ship-mobile.sh sẽ scp APK lên /var/www/mirotic-apps/<slug>/app.apk"
-echo "  - Và append /etc/caddy/vhosts/<slug>.caddy để expose <slug>.luunguyen.dev/app.apk"
+echo "  - Và append /etc/caddy/vhosts/<slug>.caddy để expose <slug>.mirotic.io/app.apk"

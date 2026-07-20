@@ -3,7 +3,7 @@
 # Mỗi project thêm 1 file riêng vào /etc/caddy/sites/<slug>.caddy → Caddy auto-import.
 # Caddy tự lấy HTTPS cho mọi (sub)domain (nếu DNS đã trỏ về IP này).
 #
-# Yêu cầu trước: DNS *.luunguyen.dev (wildcard) đã trỏ về AWS_HOST.
+# Yêu cầu trước: DNS *.mirotic.io (wildcard) đã trỏ về AWS_HOST.
 # Chạy từ thư mục chứa file này:
 #   AWS_HOST=... SSH_KEY=... SSH_USER=ec2-user ./setup-aws-caddy.sh
 set -euo pipefail
@@ -100,6 +100,6 @@ echo ""
 echo "════════════════════════════════════════════════════════════"
 echo " Caddy đã chạy trên $AWS_HOST"
 echo "════════════════════════════════════════════════════════════"
-echo " ⚠️  PREREQ: DNS *.luunguyen.dev → $AWS_HOST (wildcard A record)"
-echo " Test:    dig +short pi-1000-digits.luunguyen.dev"
-echo " Site:    sau khi ship 1 project, https://<slug>.luunguyen.dev sẽ live."
+echo " ⚠️  PREREQ: DNS *.mirotic.io → $AWS_HOST (wildcard A record)"
+echo " Test:    dig +short pi-1000-digits.mirotic.io"
+echo " Site:    sau khi ship 1 project, https://<slug>.mirotic.io sẽ live."

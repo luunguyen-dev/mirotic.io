@@ -33,7 +33,7 @@ export async function deploy(id: string): Promise<void> {
   const cwd = `${CONFIG.builds}/${id}`;
   const slug = idea.slug;
   const publicPort = PUBLIC_PORT_BASE + (Math.abs(hash(slug)) % 900);
-  const domain = `${slug}.luunguyen.dev`;
+  const domain = `${slug}.${CONFIG.deployDomain}`;
   const isMobileType = idea.type === "mobile-expo";
   jLog(id, `🚀 DEPLOY → ${CONFIG.awsHost} — ${id}${isMobileType ? " (mobile: EAS Build + APK)" : ""}`);
   await updatePlanStep(id, "deploy", "in_progress");
@@ -61,7 +61,7 @@ export async function deploy(id: string): Promise<void> {
     // 3) Chạy ship script — pipe + tail vào job_logs
     const shipScript = isMobileType ? "./ship-mobile.sh" : "./ship.sh";
     jLog(id, `[ship] bash ${shipScript} — ${isMobileType ? `EAS Build APK → ${domain}/app.apk` : `domain=${domain} port=${publicPort}`}`);
-    const proc = Bun.spawn(["bash", shipScript], { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env } });
+    const proc = Bun.spawn(["bash", shipScript], { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env, DEPLOY_DOMAIN: CONFIG.deployDomain } });
     const pipeToLog = async (stream: ReadableStream<Uint8Array>, isStderr: boolean) => {
       const reader = stream.getReader(); const dec = new TextDecoder(); let buf = "";
       for (;;) {
