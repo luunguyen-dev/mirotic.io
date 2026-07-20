@@ -51,14 +51,20 @@ const hash = (s: string) => {
 };
 
 // Verify Builder đã tạo đủ artifact + docker-compose.yml parse được.
-// Mobile-expo: check app.json + eas.json + package.json + App.tsx thay vì Dockerfile.
+// Mobile-expo: check config files + entry point + eas.json thay vì Dockerfile.
 export async function verifyBuildArtifacts(cwd: string, projectType?: string): Promise<string[]> {
   const { statSync } = await import("node:fs");
+  const exists = (f: string) => { try { statSync(`${cwd}/${f}`); return true; } catch { return false; } };
   const missing: string[] = [];
   if (projectType === "mobile-expo") {
-    for (const f of ["app.json", "eas.json", "package.json", "App.tsx", "ship-mobile.sh", "README.md"]) {
-      try { statSync(`${cwd}/${f}`); } catch { missing.push(f); }
+    // Config files luôn bắt buộc.
+    for (const f of ["app.json", "eas.json", "package.json", "ship-mobile.sh", "README.md"]) {
+      if (!exists(f)) missing.push(f);
     }
+    // Entry point: chấp nhận CẢ HAI convention — bare `App.tsx` HOẶC expo-router (`app/`).
+    // Builder (Claude Code) thường chọn expo-router (app/_layout.tsx + app/index.tsx), không phải App.tsx.
+    const entryCandidates = ["App.tsx", "App.js", "app/_layout.tsx", "app/index.tsx", "app/index.js", "index.tsx", "index.ts"];
+    if (!entryCandidates.some(exists)) missing.push("entry (App.tsx hoặc app/_layout.tsx cho expo-router)");
     if (missing.length === 0) {
       // Verify package.json có deps expo + react-native
       try {
