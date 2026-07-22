@@ -17,6 +17,16 @@ BASE_URL="https://${DOMAIN}"
 echo "🚀 ship-mobile: ${SLUG}"
 echo ""
 
+# ─── Phase 0: đảm bảo EAS project tồn tại ─────────────────────────
+# app.json ship kèm placeholder {EAS_PROJECT_ID}; eas build cần projectId THẬT.
+# Gỡ placeholder (+ updates OTA không cần cho preview APK) rồi eas init --force tạo project.
+# Idempotent: app.json đã có projectId thật (không còn placeholder) thì skip.
+if grep -q "{EAS_PROJECT_ID}" app.json 2>/dev/null; then
+  echo "🔧 [0/3] eas init — tạo/link EAS project…"
+  node -e 'const fs=require("fs");const j=JSON.parse(fs.readFileSync("app.json","utf8"));if(j.expo&&j.expo.extra&&j.expo.extra.eas)delete j.expo.extra.eas.projectId;if(j.expo&&j.expo.updates)delete j.expo.updates;fs.writeFileSync("app.json",JSON.stringify(j,null,2));'
+  eas init --force --non-interactive
+fi
+
 # ─── Phase 1: PREVIEW APK → APK subdomain ─────────────────────────
 echo "📦 [1/3] EAS Build preview (APK internal)…"
 eas build --profile preview --platform android --non-interactive --wait
@@ -55,15 +65,27 @@ rm -f app.apk
 echo "✓ APK: ${BASE_URL}/app.apk"
 echo ""
 
-# ─── Phase 2: PRODUCTION AAB → EAS Submit → Play Internal ─────────
-echo "📦 [2/3] EAS Build production (AAB cho Play Store)…"
-eas build --profile production --platform android --non-interactive --wait
-
-echo "📤 [3/3] EAS Submit → Play Console Internal Testing…"
-eas submit --profile production --platform android --non-interactive
+# ─── Phase 2/3: PRODUCTION AAB → Play Store (OPTIONAL, best-effort) ───
+# CHỈ chạy khi service account đã cấu hình (eas.json không còn placeholder + file key tồn tại).
+# App mới CHƯA có trên Play Console phải upload tay lần đầu (chính sách Google) → submit sẽ fail;
+# nên Phase này KHÔNG chặn deploy — APK sideload ở trên đã là deploy thành công.
+PLAY_LINE=""
+SA_PATH="$(node -e 'try{let p=(require("./eas.json").submit?.production?.android?.serviceAccountKeyPath)||"";p=p.replace(/^~/,process.env.HOME||"~");console.log(p)}catch(e){console.log("")}')"
+if [[ -n "$SA_PATH" && "$SA_PATH" != *"{ANDROID_SERVICE_ACCOUNT"* && -f "$SA_PATH" ]]; then
+  echo "📦 [2/3] EAS Build production (AAB) + submit Play Internal (best-effort)…"
+  if eas build --profile production --platform android --non-interactive --wait \
+     && eas submit --profile production --platform android --non-interactive; then
+    PLAY_LINE="  • Play Internal: https://play.google.com/console (Test → Internal Testing → ${SLUG})"
+    echo "✓ Play Console Internal Testing updated"
+  else
+    echo "⚠️  Play submit bỏ qua/lỗi (app mới cần upload tay lần đầu) — APK sideload vẫn OK"
+  fi
+else
+  echo "⏭️  [2/3] Bỏ qua Play Store (chưa cấu hình service account) — chỉ host APK sideload"
+fi
 
 echo ""
 echo "✓ Deployed:"
 echo "  • APK sideload:  ${BASE_URL}/app.apk"
-echo "  • Play Internal: https://play.google.com/console (Test → Internal Testing → ${SLUG})"
+[[ -n "$PLAY_LINE" ]] && echo "$PLAY_LINE"
 echo "${BASE_URL}/app.apk"
