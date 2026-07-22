@@ -61,7 +61,9 @@ export async function deploy(id: string): Promise<void> {
     // 3) Chạy ship script — pipe + tail vào job_logs
     const shipScript = isMobileType ? "./ship-mobile.sh" : "./ship.sh";
     jLog(id, `[ship] bash ${shipScript} — ${isMobileType ? `EAS Build APK → ${domain}/app.apk` : `domain=${domain} port=${publicPort}`}`);
-    const proc = Bun.spawn(["bash", shipScript], { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env, DEPLOY_DOMAIN: CONFIG.deployDomain } });
+    // MIROTIC_SLUG: slug THẬT (idea.slug) — ship-mobile.sh không tự đoán từ basename (build dir tên = job-id,
+    // không có prefix mirotic- nên basename ra nhầm job-id → subdomain sai lệch với DB).
+    const proc = Bun.spawn(["bash", shipScript], { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env, DEPLOY_DOMAIN: CONFIG.deployDomain, MIROTIC_SLUG: slug } });
     const pipeToLog = async (stream: ReadableStream<Uint8Array>, isStderr: boolean) => {
       const reader = stream.getReader(); const dec = new TextDecoder(); let buf = "";
       for (;;) {
@@ -81,7 +83,9 @@ export async function deploy(id: string): Promise<void> {
 
     const deployedUrl = `https://${domain}`;
     const apkUrl = isMobileType ? `${deployedUrl}/app.apk` : undefined;
-    await db.setResult(id, { ...(job.result ?? {}), deployedUrl, publicPort, ...(apkUrl ? { apkUrl } : {}) }, "deployed");
+    // Bỏ error cũ (nếu deploy trước từng fail) — job deployed không nên còn error field.
+    const { error: _prevErr, ...prevResult } = job.result ?? {};
+    await db.setResult(id, { ...prevResult, deployedUrl, publicPort, ...(apkUrl ? { apkUrl } : {}) }, "deployed");
     await updatePlanStep(id, "deploy", "done", apkUrl ?? deployedUrl);
     await sendEmail(`🚀 Đã deploy: ${idea.title}`, deployedEmail(idea, apkUrl ?? deployedUrl), "deployed");
     jLog(id, `✓ deployed · ${apkUrl ?? deployedUrl}`, "summary");

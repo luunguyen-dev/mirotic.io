@@ -10,7 +10,8 @@
 #   DEPLOY_DOMAIN                          — domain gốc (default mirotic.io)
 set -euo pipefail
 
-SLUG="$(basename $(pwd) | sed 's/^mirotic-//')"
+# SLUG: ưu tiên MIROTIC_SLUG (deployer truyền idea.slug thật); fallback basename khi chạy tay.
+SLUG="${MIROTIC_SLUG:-$(basename "$(pwd)" | sed 's/^mirotic-//')}"
 DOMAIN="${SLUG}.${DEPLOY_DOMAIN:-mirotic.io}"
 BASE_URL="https://${DOMAIN}"
 
