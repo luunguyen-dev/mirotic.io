@@ -19,7 +19,7 @@ const env = (k: string, d = "") => process.env[k] ?? d;
 const bool = (k: string, d = false) => (process.env[k] ?? String(d)) === "true";
 
 const CFG = {
-  niches: env("NICHES", "developer tools,productivity,AI/LLM apps,data viz,everyday life,personal finance,health & sleep,cooking & groceries,commuting & travel,family & relationships").split(",").map((s) => s.trim()),
+  niches: env("NICHES", "developer tools,productivity,AI/LLM apps,AI agents,chatbots,RAG,voice AI,data viz,everyday life,personal finance,health & sleep,cooking & groceries,commuting & travel,family & relationships").split(",").map((s) => s.trim()),
   prototyperModel: env("MODEL_PROTOTYPER", env("OLLAMA_MODEL", "claude-sonnet-5")),
   // Ollama vẫn cần USE_REAL_OLLAMA để bật; Claude tự bật (auth qua Max/API key).
   useRealOllama: bool("USE_REAL_OLLAMA", false),
@@ -241,7 +241,7 @@ TIÊU CHÍ CHẤT LƯỢNG (quan trọng — tránh idea "chán"):
 - **Cụ thể**: title_en/title_vi chỉ là tên product ngắn gọn, KHÔNG kèm em-dash + tagline. Tagline đã có ở pitch_en riêng. Ví dụ: title="Standup" ✓, KHÔNG "Standup — 5-min voice memo" ❌ (redundant với pitch).
 - **Có góc riêng**: nêu rõ 1 điểm khác biệt với các tool cùng lĩnh vực đã có
 - **Features = hành vi demo được**: mỗi feature là 1 câu "user làm X → thấy Y trên màn hình". KHÔNG marketing claim ("theo dõi thông minh" ❌), KHÔNG khả năng kỹ thuật chưa chứng minh ("dùng mic bắt chuyển động qua nệm" ❌). Ai đọc features phải hình dung được đúng màn hình demo.
-- **Buildable 1 ngày**: 2-24h, KHÔNG cần API/data khó xin, KHÔNG scope > 1 người 1 ngày, KHÔNG dựa vào ML/CV/sensor processing chưa có sẵn
+- **Buildable 1 ngày**: 2-24h, KHÔNG cần API/data khó xin, KHÔNG scope > 1 người 1 ngày, KHÔNG dựa vào ML/CV/sensor processing chưa có sẵn. NGOẠI LỆ: gọi LLM API (Claude/GPT/Gemini) là SẴN CÓ — bot/agent dựa trên LLM vẫn tính buildable-1-ngày.
 - **Target user cụ thể**: "developers debugging..." ❌ vague; "SREs chăm 3 microservices Go, không muốn attach debugger" ✓; "mẹ 2 con lập menu tuần Chủ Nhật" ✓
 - **PMF signal**: user có động lực trả tiền / khoe cho bạn / dùng weekly?
 - **Cân bằng phạm vi (BẮT BUỘC)**: ${n} idea PHẢI chia rõ hai nhóm — dù prompt/signals nghiêng về tech, VẪN phải giữ tỷ lệ:
@@ -254,6 +254,15 @@ Song ngữ EN + VI cho mọi text. type ∈ web-frontend | full-stack | cli | br
 **Cân bằng platform (BẮT BUỘC)**: 4-5 idea PHẢI có type="mobile-expo" (React Native + Expo — chạy trên iOS/Android). Còn lại chia đều các type khác.
 - Mobile idea tập trung: offline-first, camera/mic/GPS, notifications, portrait UX, on-the-go moment (đang di chuyển / trong bếp / ở phòng gym). KHÔNG mobile version của tool desktop.
 - Buildable-1-day cho mobile = feature core + 1-2 screens, không auth phức tạp, không sync cloud.
+
+**Cân bằng AI bot (BẮT BUỘC)**: 3-4 trong ${n} idea PHẢI là "AI bot" — sản phẩm mà giá trị CỐT LÕI đến từ LLM/agent (gọi Claude/GPT/Gemini API). Trải đều 4 kiểu, mỗi kiểu ≥1 nếu được:
+   1. **Chatbot/trợ lý + RAG**: user upload tài liệu/notes/URL → hỏi-đáp trên dữ liệu riêng của họ.
+   2. **Agent tự động (dev/pro)**: tool-use, chạy workflow nhiều bước, tự thao tác thay user (vd triage issue, refactor, phân tích log).
+   3. **Bot nền tảng**: Discord/Telegram/Slack bot hoặc web chat widget nhúng vào sản phẩm khác.
+   4. **Voice/đa phương thức**: bot giọng nói, đọc ảnh/screenshot, chuyển audio↔text.
+   - AI bot nằm trong ~5-6 slot NON-mobile (sau quota mobile ở trên); có thể thuộc nhóm everyday (trợ lý cá nhân) hoặc technical (agent dev).
+   - Type thường là **full-stack** (cần backend giữ API key) hoặc browser-extension/cli. TUYỆT ĐỐI KHÔNG để lộ API key ở web-frontend thuần.
+   - Feature vẫn phải DEMO ĐƯỢC: "user gõ/nói X → bot trả Y trên màn hình". KHÔNG marketing claim ("AI thông minh hiểu bạn" ❌).
 
 Trả JSON array ${n} items, không markdown, không giải thích:
 [{"title_en":"...","title_vi":"...","slug":"kebab-case-slug","type":"web-frontend|mobile-expo|...",
